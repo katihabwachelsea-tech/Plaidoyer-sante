@@ -2,8 +2,11 @@
 
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../models/user.dart';
 import '../main.dart';
 import 'register_page.dart';
+import 'patient_home_page.dart';
+import 'medecin/medecin_navigation.dart';
 import '../widgets/metric_card.dart';
 
 class LoginPage extends StatefulWidget {
@@ -15,7 +18,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -23,18 +26,18 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  // Fonctions de validation (inchangées)
-  String? _validateUsername(String? value) {
+  // Validation de l'email utilisé pour la connexion Laravel
+  String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Le nom d\'utilisateur est requis';
+      return 'L\'email est requis';
     }
-    if (value.trim().length < 3) {
-      return 'Au moins 3 caractères requis';
+    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(value.trim())) {
+      return 'Entrez une adresse email valide';
     }
     return null;
   }
@@ -79,16 +82,31 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final authService = AuthService.instance;
       final result = await authService.login(
-        username: _usernameController.text.trim(),
+        email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
       if (!mounted) return;
 
       if (result['success']) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainNavigation()),
-        );
+        // Récupérer le rôle utilisateur
+        final authService = AuthService.instance;
+        final userRole = authService.currentUser?.role;
+
+        // Redirection selon le rôle
+        if (userRole == User.rolePatient) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const PatientHomePage()),
+          );
+        } else if (userRole == User.roleDoctor) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MedecinNavigation()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -229,19 +247,20 @@ class _LoginPageState extends State<LoginPage> {
 
                               const SizedBox(height: AppSizes.paddingXL),
 
-                              // Champ nom d'utilisateur
+                              // Champ email pour la connexion Laravel
                               TextFormField(
-                                controller: _usernameController,
+                                controller: _emailController,
                                 decoration: InputDecoration(
-                                  labelText: 'Nom d\'utilisateur',
-                                  hintText: 'Entrez votre nom d\'utilisateur',
+                                  labelText: 'Email',
+                                  hintText: 'Entrez votre adresse email',
                                   prefixIcon: Icon(
-                                    Icons.person_outline_rounded,
+                                    Icons.email_outlined,
                                     color: AppColors.primary,
                                   ),
                                 ),
+                                keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
-                                validator: _validateUsername,
+                                validator: _validateEmail,
                                 enabled: !_isLoading,
                               ),
 

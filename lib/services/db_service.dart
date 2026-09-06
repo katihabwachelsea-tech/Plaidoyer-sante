@@ -1,4 +1,5 @@
 // lib/services/db_service.dart
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/patient.dart';
@@ -43,8 +44,9 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDatabase,
+      onUpgrade: _onUpgradeDatabase,
       onOpen: (db) async {
         print('✅ Base de données ouverte avec succès');
         // Vérifier le nombre de patients au démarrage
@@ -71,7 +73,9 @@ class DatabaseService {
  dateCreation TEXT NOT NULL,
  maladie TEXT NOT NULL,
  conseils TEXT,
- derniereVisite TEXT
+ derniereVisite TEXT,
+ server_id INTEGER,
+ updated_at TEXT
  )
  ''');
     print('✅ Table Patients créée');
@@ -129,6 +133,39 @@ targetCountry TEXT
     print('✅ Table Sponsors créée');
     // 💡 NOUVEL APPEL : Insérer les sponsors par défaut juste après la création de la table
     await insertInitialSponsors(db);
+    await _createPendingSyncTable(db);
+  }
+
+  Future<void> _onUpgradeDatabase(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN server_id INTEGER',
+      );
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN updated_at TEXT',
+      );
+      await _createPendingSyncTable(db);
+      print('✅ Migration v2 : server_id, updated_at, pending_sync');
+    }
+  }
+
+  Future<void> _createPendingSyncTable(Database db) async {
+    await db.execute('''
+CREATE TABLE IF NOT EXISTS pending_sync (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity_type TEXT NOT NULL,
+  entity_id INTEGER,
+  server_id INTEGER,
+  action TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL
+)
+''');
+    print('✅ Table pending_sync prête');
   }
 
   // Données de test
@@ -426,6 +463,82 @@ targetCountry TEXT
     // ... (Logique inchangée)
     final db = await database;
     return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Remplace tout le cache local par les données du serveur (PULL)
+  Future<void> replaceAllPatients(List<Patient> patients) async {
+    final db = await database;
+    await db.delete(tableName);
+    for (final patient in patients) {
+      await db.insert(
+        tableName,
+        {
+          ...patient.toMap()..remove('id'),
+          'id': patient.serverId ?? patient.id,
+          'server_id': patient.serverId ?? patient.id,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    print('💾 ${patients.length} patients synchronisés en local');
+  }
+
+  Future<void> upsertPatientFromServer(Patient patient) async {
+    final db = await database;
+    final serverId = patient.serverId ?? patient.id;
+    await db.insert(
+      tableName,
+      {
+        ...patient.toMap()..remove('id'),
+        'id': serverId,
+        'server_id': serverId,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updatePatientServerId(int localId, int serverId) async {
+    final db = await database;
+    await db.update(
+      tableName,
+      {'server_id': serverId, 'id': serverId},
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  // ========== QUEUE DE SYNCHRONISATION ==========
+
+  Future<int> enqueueSync({
+    required String action,
+    required Patient patient,
+    int? localId,
+  }) async {
+    final db = await database;
+    return db.insert('pending_sync', {
+      'entity_type': 'patient',
+      'entity_id': localId ?? patient.id,
+      'server_id': patient.serverId,
+      'action': action,
+      'payload': jsonEncode(patient.toApiMap()),
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingSyncItems() async {
+    final db = await database;
+    return db.query('pending_sync', orderBy: 'created_at ASC');
+  }
+
+  Future<void> removePendingSyncItem(int queueId) async {
+    final db = await database;
+    await db.delete('pending_sync', where: 'id = ?', whereArgs: [queueId]);
+  }
+
+  Future<int> getPendingSyncCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) FROM pending_sync');
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 
   // ========== STATISTIQUES PATIENTS ==========

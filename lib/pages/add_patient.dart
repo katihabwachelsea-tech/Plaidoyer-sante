@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // import '../utils/constants.dart';
 import '../models/patient.dart';
-import '../services/db_service.dart';
+import '../services/sync_service_hybrid.dart';
 import '../widgets/metric_card.dart';
+import '../services/db_service.dart';
 
 class AddPatientPage extends StatefulWidget {
   final Patient? patient; // Pour l'édition (null si nouveau patient)
@@ -179,12 +180,10 @@ class _AddPatientPageState extends State<AddPatientPage> {
         derniereVisite: _derniereVisite,
       );
 
-      final dbService = DatabaseService.instance;
+      final sync = SyncServiceHybrid.instance;
 
-      // Insérer ou mettre à jour
       if (widget.patient == null) {
-        // Nouveau patient
-        await dbService.insertPatient(patient);
+        await sync.insertPatient(patient);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -198,7 +197,7 @@ class _AddPatientPageState extends State<AddPatientPage> {
         }
       } else {
         // Modification
-        await dbService.updatePatient(patient);
+        await sync.updatePatient(patient);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

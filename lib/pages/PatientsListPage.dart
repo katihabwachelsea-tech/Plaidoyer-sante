@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/patient.dart'; // Assurez-vous d'avoir ce modèle
-import '../services/db_service.dart'; // Pour interagir avec SQLite
+import '../services/sync_service_hybrid.dart';
 import '../pages/patient_detail.dart'; // Pour l'édition (supposé être la page de détail/édition)
 //import '../utils/constants.dart'; // Pour les couleurs (AppColors, à adapter)
 import '../widgets/metric_card.dart'; // Pour l'édition (supposé être la page de détail/édition)
@@ -31,7 +31,11 @@ class _PatientsListPageState extends State<PatientsListPage> {
     });
     try {
       // Utilise la méthode qui récupère TOUS les patients (triés par date, du plus récent au plus ancien)
-      final patients = await DatabaseService.instance.getAllPatients();
+      final sync = SyncServiceHybrid.instance;
+      if (await sync.isOnline()) {
+        await sync.syncAll();
+      }
+      final patients = await sync.getAllPatients();
       
       if (mounted) {
         setState(() {
@@ -74,7 +78,7 @@ class _PatientsListPageState extends State<PatientsListPage> {
     );
 
     if (confirmed == true) {
-      final rows = await DatabaseService.instance.deletePatient(id);
+      final rows = await SyncServiceHybrid.instance.deletePatient(id);
       if (rows > 0) {
         // Recharge la liste et affiche un message de succès
         _loadAllPatients();

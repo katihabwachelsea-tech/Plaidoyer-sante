@@ -5,9 +5,9 @@ import '../models/patient.dart'; // Assurez-vous d'importer votre modèle Patien
 // import '../utils/constants.dart' as constants; // Pour les couleurs et tailles
 import '../widgets/metric_card.dart';
 import '../models/Conseil.dart'; // 1. Import du modèle Conseil
-import '../services/db_service.dart'; // 2. Import du service DB
+import '../services/sync_service_hybrid.dart';
 import '../services/ai_chat_service.dart'; // 2. Import du service DB
-//import '../services/ai_chat_service.dart'; // 2. Import du service DB
+import '../services/db_service.dart';
 // import 'utils/constants.dart';
 import '../pages/ai_chat_page.dart';
 
@@ -128,7 +128,7 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
         );
 
         // Appel au service pour mettre à jour en base de données
-        await DatabaseService.instance.updatePatient(updatedPatient);
+        await SyncServiceHybrid.instance.updatePatient(updatedPatient);
 
         setState(() {
           _currentPatient = updatedPatient;

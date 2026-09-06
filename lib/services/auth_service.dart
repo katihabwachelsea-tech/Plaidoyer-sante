@@ -1,405 +1,346 @@
-// lib/services/auth_service.dart
-
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
+import '../config/app_config.dart';
+import 'mock_demo_data.dart';
 
 class AuthService {
-  static Database? _authDatabase;
-  static const String usersTable = 'users';
+  static const String baseUrl = AppConfig.baseUrl;
 
-  // Singleton
+  // Pour stocker le Token de manière sécurisée
+  final _storage = const FlutterSecureStorage();
+
+  User? _currentUser;
+  User? get currentUser => _currentUser;
+
   static final AuthService instance = AuthService._internal();
   factory AuthService() => instance;
   AuthService._internal();
 
-  // User actuel connecté
-  User? _currentUser;
-  User? get currentUser => _currentUser;
-
-  // Getter pour la database
-  Future<Database> get database async {
-    _authDatabase ??= await _initAuthDatabase();
-    return _authDatabase!;
-  }
-
-  // Initialiser la base d'authentification
-  Future<Database> _initAuthDatabase() async {
-    String path = join(await getDatabasesPath(), 'auth.db');
-    
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: _createAuthDatabase,
-    );
-  }
-
-  // Créer la table users
-  Future<void> _createAuthDatabase(Database db, int version) async {
-    print('📅 Création de la table d\'authentification...');
-    
-    await db.execute('''
-      CREATE TABLE $usersTable (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        fullName TEXT NOT NULL,
-        role TEXT NOT NULL,
-        specialization TEXT,
-        profileImageUrl TEXT,
-        createdAt TEXT NOT NULL,
-        lastLogin TEXT,
-        isActive INTEGER DEFAULT 1
-      )
-    ''');
-
-    // Créer un utilisateur admin par défaut
-    await _createDefaultAdmin(db);
-    print('✅ Table users créée avec admin par défaut');
-  }
-
-  // Créer un compte admin par défaut
-  Future<void> _createDefaultAdmin(Database db) async {
-    final hashedPassword = _hashPassword('admin123');
-    
-    await db.insert(usersTable, {
-      'username': 'admin',
-      'password': hashedPassword,
-      'fullName': 'Administrateur',
-      'role': 'admin',
-      'specialization': 'Administration',
-      'createdAt': DateTime.now().toIso8601String(),
-      'isActive': 1,
-    });
-    
-    print('👤 Compte admin créé : admin / admin123');
-  }
-
-  // Hasher le mot de passe
-  String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final hash = sha256.convert(bytes);
-    return hash.toString();
-  }
-
-  // INSCRIPTION - Créer un nouveau compte
-  Future<Map<String, dynamic>> register({
-    required String username,
+  // CONNEXION - On tape sur ton AuthController@login de Laravel
+  Future<Map<String, dynamic>> login({
+    required String email,
     required String password,
-    required String fullName,
-    required String role,
-    String? specialization,
-    String? profileImageUrl,
   }) async {
     try {
-      // Validation
-      if (username.length < 3) {
-        return {
-          'success': false,
-          'message': 'Le nom d\'utilisateur doit contenir au moins 3 caractères'
-        };
-      }
-
-      if (password.length < 6) {
-        return {
-          'success': false,
-          'message': 'Le mot de passe doit contenir au moins 6 caractères'
-        };
-      }
-
-      final db = await database;
-
-      // Vérifier si l'utilisateur existe déjà
-      final existing = await db.query(
-        usersTable,
-        where: 'username = ?',
-        whereArgs: [username.toLowerCase()],
+      debugPrint('AuthService -> POST $baseUrl/login');
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
       );
 
-      if (existing.isNotEmpty) {
+      debugPrint('AuthService <- ${response.statusCode} ${response.body}');
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == true) {
+        // 1. On récupère le token renvoyé par ton Sanctum
+        String token = data['token'];
+
+        // 2. On le stocke dans le téléphone
+        await _storage.write(key: 'jwt_token', value: token);
+        await _storage.write(
+          key: 'user_role',
+          value: data['user']['role']?.toString() ?? 'patient',
+        );
+
+        // 3. On crée l'objet User à partir du JSON de Laravel
+        _currentUser = User.fromMap(data['user']);
+
+        return {
+          'success': true,
+          'message': data['message'],
+          'user': _currentUser,
+        };
+      } else {
         return {
           'success': false,
-          'message': 'Ce nom d\'utilisateur existe déjà'
+          'message': data['message'] ?? 'Identifiants incorrects',
         };
       }
-
-      // Créer le nouvel utilisateur
-      final hashedPassword = _hashPassword(password);
-      final userId = await db.insert(usersTable, {
-        'username': username.toLowerCase(),
-        'password': hashedPassword,
-        'fullName': fullName,
-        'role': role,
-        'specialization': specialization,
-        'profileImageUrl': profileImageUrl,
-        'createdAt': DateTime.now().toIso8601String(),
-        'isActive': 1,
-      });
-
-      print('✅ Utilisateur créé avec ID: $userId');
-
-      return {
-        'success': true,
-        'message': 'Compte créé avec succès',
-        'userId': userId,
-      };
     } catch (e) {
-      print('❌ Erreur lors de l\'inscription: $e');
       return {
         'success': false,
-        'message': 'Erreur lors de la création du compte: $e'
+        'message': 'Erreur de connexion au serveur : $e',
       };
     }
   }
 
-  // CONNEXION - Login
-  Future<Map<String, dynamic>> login({
-    required String username,
+  // INSCRIPTION - Appel du backend Laravel
+  Future<Map<String, dynamic>> register({
+    required String email,
+    String? telephone,
     required String password,
+    required String fullName,
+    required String role,
+    String? profileImageUrl,
   }) async {
     try {
-      final db = await database;
-
-      // Rechercher l'utilisateur
-      final users = await db.query(
-        usersTable,
-        where: 'username = ? AND isActive = 1',
-        whereArgs: [username.toLowerCase()],
+      final response = await http.post(
+        Uri.parse('$baseUrl/register'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+          'password_confirmation': password,
+          'nom': fullName,
+          'telephone': telephone ?? '',
+          'role': role,
+          if (profileImageUrl != null && profileImageUrl.isNotEmpty) 'profileImageUrl': profileImageUrl,
+        }),
       );
 
-      if (users.isEmpty) {
+      final data = json.decode(response.body);
+      final isSuccess = response.statusCode == 200 || response.statusCode == 201;
+
+      // Stocker le token immédiatement après l'inscription
+      // pour que l'onboarding (complete-profile) puisse s'authentifier
+      if (isSuccess && data['token'] != null) {
+        await _storage.write(key: 'jwt_token', value: data['token'] as String);
+        await _storage.write(key: 'user_role', value: role);
+        if (data['user'] != null) {
+          _currentUser = User.fromMap(data['user'] as Map<String, dynamic>);
+        }
+      }
+
+      return {
+        'success': isSuccess,
+        'message': data['message'] ?? 'Inscription réussie',
+        'data': data,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erreur lors de l\'inscription : $e',
+      };
+    }
+  }
+
+  // COMPLÉTER LE PROFIL (Onboarding)
+  Future<Map<String, dynamic>> completeProfile({
+    required String role,
+    String? specialite,
+    String? licence,
+    String? hopital,
+    String? biographie,
+    String? disponibilite,
+    String? dateNaissance,
+    String? groupeSanguin,
+    String? maladie,
+    String? antecedents,
+  }) async {
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+      if (token == null) {
         return {
           'success': false,
-          'message': 'Nom d\'utilisateur ou mot de passe incorrect'
+          'message': 'Token non trouvé. Veuillez vous reconnecter.',
         };
       }
 
-      final userData = users.first;
-      final hashedPassword = _hashPassword(password);
+      final endpoint = role == 'medecin' 
+          ? '$baseUrl/medecin/complete-profile'
+          : '$baseUrl/patient/complete-profile';
 
-      // Vérifier le mot de passe
-      if (userData['password'] != hashedPassword) {
-        return {
-          'success': false,
-          'message': 'Nom d\'utilisateur ou mot de passe incorrect'
-        };
-      }
+      final body = role == 'medecin'
+          ? {
+              'specialite': specialite,
+              'licence': licence,
+              'hopital': hopital,
+              'biographie': biographie,
+              'disponibilite': disponibilite,
+            }
+          : {
+              'date_naissance': dateNaissance,
+              'groupe_sanguin': groupeSanguin,
+              'maladie': maladie,
+              'antecedents': antecedents,
+            };
 
-      // Mettre à jour la dernière connexion
-      await db.update(
-        usersTable,
-        {'lastLogin': DateTime.now().toIso8601String()},
-        where: 'id = ?',
-        whereArgs: [userData['id']],
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
       );
 
-      // Créer l'objet User
-      _currentUser = User.fromMap(userData);
+      final data = json.decode(response.body);
 
-      print('✅ Connexion réussie: ${_currentUser!.fullName}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Profil complété avec succès',
+          'data': data,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors de la complétion du profil',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erreur : $e',
+      };
+    }
+  }
+
+  // CHERCHER LES MÉDECINS
+  Future<Map<String, dynamic>> fetchDoctors({
+    String? specialite,
+    String? searchQuery,
+  }) async {
+    if (MockDemoDataService.isEnabled) {
+      final demoDoctors = MockDemoDataService.instance.doctors;
+      final filteredDoctors = demoDoctors.where((doctor) {
+        final name = (doctor['user']?['nom'] ?? doctor['nom'] ?? '')
+            .toString()
+            .toLowerCase();
+        final specialty = (doctor['specialite'] ?? '').toString().toLowerCase();
+        final query = (searchQuery ?? '').toLowerCase();
+        final selectedSpecialty = (specialite ?? '').toLowerCase();
+
+        final matchesQuery = query.isEmpty || name.contains(query) || specialty.contains(query);
+        final matchesSpecialty = selectedSpecialty.isEmpty || specialty.contains(selectedSpecialty);
+        return matchesQuery && matchesSpecialty;
+      }).toList();
 
       return {
         'success': true,
-        'message': 'Connexion réussie',
-        'user': _currentUser,
+        'doctors': filteredDoctors,
+        'message': 'Données de démonstration actives',
       };
+    }
+
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+
+      final queryParameters = <String, String>{};
+
+      if (specialite != null && specialite.isNotEmpty) {
+        queryParameters['specialite'] = specialite;
+      }
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        queryParameters['search'] = searchQuery;
+      }
+
+      final uri = Uri.parse('$baseUrl/medecins');
+      final uriWithParams = queryParameters.isNotEmpty
+          ? uri.replace(queryParameters: queryParameters)
+          : uri;
+
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final response = await http.get(
+        uriWithParams,
+        headers: headers,
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'doctors': data['data'] ?? data['medecins'] ?? [],
+          'message': 'Médecins récupérés avec succès',
+        };
+      } else {
+        return {
+          'success': false,
+          'doctors': [],
+          'message': data['message'] ?? 'Erreur lors de la récupération des médecins',
+        };
+      }
     } catch (e) {
-      print('❌ Erreur lors de la connexion: $e');
       return {
         'success': false,
-        'message': 'Erreur lors de la connexion: $e'
+        'doctors': [],
+        'message': 'Erreur: $e',
+      };
+    }
+  }
+
+  // RÉCUPÉRER TOUTES LES SPÉCIALITÉS
+  Future<Map<String, dynamic>> fetchSpecialties() async {
+    if (MockDemoDataService.isEnabled) {
+      return {
+        'success': true,
+        'specialties': MockDemoDataService.instance.specialties,
+        'message': 'Spécialités de démonstration',
+      };
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/specialites'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'specialties': data['data'] ?? data['specialites'] ?? [],
+          'message': 'Spécialités récupérées',
+        };
+      } else {
+        return {
+          'success': false,
+          'specialties': [],
+          'message': data['message'] ?? 'Erreur',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'specialties': [],
+        'message': 'Erreur: $e',
       };
     }
   }
 
   // DÉCONNEXION
   Future<void> logout() async {
+    await _storage.delete(key: 'jwt_token');
+    await _storage.delete(key: 'user_role');
     _currentUser = null;
-    print('👋 Déconnexion effectuée');
   }
 
-  // Vérifier si un utilisateur est connecté
-  bool isLoggedIn() {
-    return _currentUser != null;
-  }
+  Future<String?> getStoredRole() => _storage.read(key: 'user_role');
 
-  // Obtenir tous les utilisateurs (admin seulement)
-  Future<List<User>> getAllUsers() async {
-    final db = await database;
-    final maps = await db.query(usersTable, orderBy: 'createdAt DESC');
-    return List.generate(maps.length, (i) => User.fromMap(maps[i]));
-  }
-
-  // Désactiver un utilisateur (admin)
-  Future<bool> deactivateUser(int userId) async {
-    try {
-      final db = await database;
-      await db.update(
-        usersTable,
-        {'isActive': 0},
-        where: 'id = ?',
-        whereArgs: [userId],
-      );
+  // Vérifie si l'utilisateur est connecté en recherchant un token sécurisé
+  Future<bool> isLoggedIn() async {
+    if (_currentUser != null) {
       return true;
-    } catch (e) {
-      print('❌ Erreur lors de la désactivation: $e');
-      return false;
-    }
-  }
-
-  // Activer un utilisateur (admin)
-  Future<bool> activateUser(int userId) async {
-    try {
-      final db = await database;
-      await db.update(
-        usersTable,
-        {'isActive': 1},
-        where: 'id = ?',
-        whereArgs: [userId],
-      );
-      return true;
-    } catch (e) {
-      print('❌ Erreur lors de l\'activation: $e');
-      return false;
-    }
-  }
-
-  // Changer le mot de passe
-  Future<Map<String, dynamic>> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    if (_currentUser == null) {
-      return {
-        'success': false,
-        'message': 'Aucun utilisateur connecté'
-      };
     }
 
-    if (newPassword.length < 6) {
-      return {
-        'success': false,
-        'message': 'Le nouveau mot de passe doit contenir au moins 6 caractères'
-      };
-    }
-
-    try {
-      final db = await database;
-
-      // Vérifier l'ancien mot de passe
-      final hashedCurrent = _hashPassword(currentPassword);
-      final users = await db.query(
-        usersTable,
-        where: 'id = ? AND password = ?',
-        whereArgs: [_currentUser!.id, hashedCurrent],
-      );
-
-      if (users.isEmpty) {
-        return {
-          'success': false,
-          'message': 'Mot de passe actuel incorrect'
-        };
-      }
-
-      // Mettre à jour avec le nouveau mot de passe
-      final hashedNew = _hashPassword(newPassword);
-      await db.update(
-        usersTable,
-        {'password': hashedNew},
-        where: 'id = ?',
-        whereArgs: [_currentUser!.id],
-      );
-
-      return {
-        'success': true,
-        'message': 'Mot de passe modifié avec succès'
-      };
-    } catch (e) {
-      print('❌ Erreur lors du changement de mot de passe: $e');
-      return {
-        'success': false,
-        'message': 'Erreur: $e'
-      };
-    }
-  }
-
-  // Réinitialiser le mot de passe (admin uniquement)
-  Future<Map<String, dynamic>> resetPassword({
-    required int userId,
-    required String newPassword,
-  }) async {
-    if (_currentUser == null || _currentUser!.role != 'admin') {
-      return {
-        'success': false,
-        'message': 'Action réservée aux administrateurs'
-      };
-    }
-
-    try {
-      final db = await database;
-      final hashedPassword = _hashPassword(newPassword);
-      
-      await db.update(
-        usersTable,
-        {'password': hashedPassword},
-        where: 'id = ?',
-        whereArgs: [userId],
-      );
-
-      return {
-        'success': true,
-        'message': 'Mot de passe réinitialisé avec succès'
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Erreur: $e'
-      };
-    }
-  }
-
-  // Mettre à jour le profil
-  Future<Map<String, dynamic>> updateProfile({
-    required String fullName,
-    String? specialization,
-  }) async {
-    if (_currentUser == null) {
-      return {
-        'success': false,
-        'message': 'Aucun utilisateur connecté'
-      };
-    }
-
-    try {
-      final db = await database;
-      
-      await db.update(
-        usersTable,
-        {
-          'fullName': fullName,
-          if (specialization != null) 'specialization': specialization,
-        },
-        where: 'id = ?',
-        whereArgs: [_currentUser!.id],
-      );
-
-      // Mettre à jour l'utilisateur actuel
-      _currentUser = _currentUser!.copyWith(
-        fullName: fullName,
-        specialization: specialization,
-      );
-
-      return {
-        'success': true,
-        'message': 'Profil mis à jour avec succès'
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Erreur: $e'
-      };
-    }
+    final token = await _storage.read(key: 'jwt_token');
+    return token != null && token.isNotEmpty;
   }
 }

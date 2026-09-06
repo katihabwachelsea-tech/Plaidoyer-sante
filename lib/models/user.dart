@@ -4,6 +4,8 @@ class User {
   final int? id;
   final String username;
   final String fullName;
+  final String? email;
+  final String? telephone;
   final String role; // 'admin', 'doctor', 'nurse', 'staff'
   final String? specialization;
   final String? profileImageUrl;
@@ -15,6 +17,8 @@ class User {
     this.id,
     required this.username,
     required this.fullName,
+    this.email,
+    this.telephone,
     required this.role,
     this.specialization,
     this.profileImageUrl,
@@ -25,14 +29,16 @@ class User {
 
   // Rôles disponibles
   // static const String roleAdmin = 'admin';
-  static const String roleDoctor = 'doctor';
+  static const String roleDoctor = 'medecin'; // Aligné avec Laravel
+  static const String rolePatient = 'patient'; // Aligné avec Laravel
   static const String roleNurse = 'nurse';
   static const String roleStaff = 'staff';
 
   // Liste des rôles avec leurs labels
   static const Map<String, String> roleLabels = {
     // 'admin': 'Administrateur',
-    'doctor': 'Médecin',
+    'medecin': 'Médecin',
+    'patient': 'Patient',
     'nurse': 'Infirmier(ère)',
     'staff': 'Personnel',
   };
@@ -61,6 +67,8 @@ class User {
       'id': id,
       'username': username,
       'fullName': fullName,
+      'email': email,
+      'telephone': telephone,
       'role': role,
       'specialization': specialization,
       'profileImageUrl': profileImageUrl,
@@ -70,28 +78,43 @@ class User {
     };
   }
 
-  // Créer depuis Map (SQLite)
+  // Créer depuis Map/JSON (compatible SQLite et Laravel)
   factory User.fromMap(Map<String, dynamic> map) {
+    final username = map['username'] as String? ?? map['email'] as String? ?? '';
+    final fullName = map['fullName'] as String? ?? map['nom'] as String? ?? '';
+    final createdAtValue = map['createdAt'] as String? ?? DateTime.now().toIso8601String();
+
     return User(
       id: map['id'] as int?,
-      username: map['username'] as String,
-      fullName: map['fullName'] as String,
+      username: username,
+      fullName: fullName,
+      email: map['email'] as String?,
+      telephone: map['telephone'] as String?,
       role: map['role'] as String,
       specialization: map['specialization'] as String?,
       profileImageUrl: map['profileImageUrl'] as String?,
-      createdAt: DateTime.parse(map['createdAt'] as String),
+      createdAt: DateTime.tryParse(createdAtValue) ?? DateTime.now(),
       lastLogin: map['lastLogin'] != null
           ? DateTime.parse(map['lastLogin'] as String)
           : null,
-      isActive: (map['isActive'] as int) == 1,
+      isActive: map['isActive'] == null
+          ? true
+          : map['isActive'] is int
+              ? (map['isActive'] as int) == 1
+              : map['isActive'] as bool,
     );
   }
+
+  /// Créer depuis JSON, utile pour les réponses API Laravel.
+  factory User.fromJson(Map<String, dynamic> json) => User.fromMap(json);
 
   // Créer une copie avec modifications
   User copyWith({
     int? id,
     String? username,
     String? fullName,
+    String? email,
+    String? telephone,
     String? role,
     String? specialization,
     String? profileImageUrl,
@@ -103,8 +126,11 @@ class User {
       id: id ?? this.id,
       username: username ?? this.username,
       fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      telephone: telephone ?? this.telephone,
       role: role ?? this.role,
       specialization: specialization ?? this.specialization,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       createdAt: createdAt ?? this.createdAt,
       lastLogin: lastLogin ?? this.lastLogin,
       isActive: isActive ?? this.isActive,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/metric_card.dart';
 import '../models/patient.dart';
 import '../services/db_service.dart';
+import '../services/sync_service_hybrid.dart';
 import '../pages/patient_detail.dart';
 import '../models/country_stats.dart';
 import '../services/who_api_service.dart';
@@ -27,6 +28,8 @@ class _HomePageState extends State<HomePage> {
   List<CountryStats> _whoStats = [];
   bool _isOnline = true;
   DateTime? _lastSyncDate;
+  int _pendingSyncCount = 0;
+  final _sync = SyncServiceHybrid.instance;
   bool _isLoadingStats =
       true; // Initialisé à true car WHOApiService est asynchrone
 
@@ -66,15 +69,24 @@ class _HomePageState extends State<HomePage> {
 
     try {
       // 1. Vérifier connexion
-      _isOnline = await WHOApiService.instance.hasInternetConnection();
+      _isOnline = await _sync.isOnline();
 
-      // 2. Charger patients depuis SQLite
+      // 2. Sync hybride MySQL → SQLite (si en ligne)
+      if (_isOnline) {
+        final result = await _sync.syncAll();
+        if (result.success) {
+          _lastSyncDate = _sync.lastSyncAt;
+        }
+        _pendingSyncCount = await _sync.getPendingCount();
+      }
+
+      // 3. Charger patients (cache SQLite)
       await _loadPatients();
 
-      // 3. Charger stats WHO (avec fallback intégré dans WHOApiService)
+      // 4. Charger stats WHO (avec fallback intégré dans WHOApiService)
       await _loadWhoStats();
 
-      // 4. Debug
+      // 5. Debug
       await DatabaseService.instance.debugPrintAllData();
     } catch (e) {
       print('❌ Erreur initialisation: $e');
@@ -87,14 +99,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Charger les patients depuis SQLite uniquement
   Future<void> _loadPatients() async {
     try {
-      final dbService = DatabaseService.instance;
-      final patients = await dbService.getRecentPatients(5);
-      final count = await dbService.getPatientCount();
+      final patients = await _sync.getRecentPatients(5);
+      final count = await _sync.getPatientCount();
 
-      print('📊 $count patients chargés depuis SQLite');
+      print('📊 $count patients (SQLite${_isOnline ? ' + sync MySQL' : ' offline'})');
 
       setState(() {
         _patients = patients;
@@ -150,7 +160,7 @@ class _HomePageState extends State<HomePage> {
       });
 
       // Appel de la recherche après le délai de 500ms
-      final results = await DatabaseService.instance.searchPatients(query);
+      final results = await _sync.searchPatients(query);
 
       if (mounted) {
         setState(() {
@@ -283,8 +293,8 @@ class _HomePageState extends State<HomePage> {
                             Expanded(
                               child: Text(
                                 _isOnline
-                                    ? 'Connecté à Internet'
-                                    : 'Hors-ligne: Données locales',
+                                    ? 'Connecté — sync MySQL${_pendingSyncCount > 0 ? ' ($_pendingSyncCount en attente)' : ''}'
+                                    : 'Hors-ligne — cache SQLite${_pendingSyncCount > 0 ? ' ($_pendingSyncCount à envoyer)' : ''}',
                                 style: TextStyle(
                                   color: _isOnline
                                       ? Colors.green

@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p; // Pour manipuler les chemins
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../widgets/metric_card.dart';
+import 'onboarding_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -19,11 +20,11 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _telephoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _fullNameController = TextEditingController();
-  final _specializationController = TextEditingController();
   
 
   // 💡 NOUVEAU : Chemin d'accès à la photo sélectionnée
@@ -36,11 +37,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
+    _telephoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _fullNameController.dispose();
-    _specializationController.dispose();
     super.dispose();
   }
 
@@ -101,15 +102,12 @@ class _RegisterPageState extends State<RegisterPage> {
   // 💡 VALIDATIONS
   // --------------------------------------------------
 
-  String? _validateUsername(String? value) {
+  String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Le nom d\'utilisateur est requis';
+      return 'L\'email est requis';
     }
-    if (value.trim().length < 3) {
-      return 'Au moins 3 caractères requis';
-    }
-    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
-      return 'Lettres, chiffres et _ uniquement';
+    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(value.trim())) {
+      return 'Entrez une adresse email valide';
     }
     return null;
   }
@@ -128,8 +126,8 @@ class _RegisterPageState extends State<RegisterPage> {
     if (value == null || value.isEmpty) {
       return 'Le mot de passe est requis';
     }
-    if (value.length < 6) {
-      return 'Au moins 6 caractères requis';
+    if (value.length < 8) {
+      return 'Au moins 8 caractères requis';
     }
     return null;
   }
@@ -160,31 +158,28 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       final authService = AuthService.instance;
       final result = await authService.register(
-        username: _usernameController.text.trim(),
+        email: _emailController.text.trim(),
+        telephone: _telephoneController.text.trim().isEmpty
+            ? null
+            : _telephoneController.text.trim(),
         password: _passwordController.text,
         fullName: _fullNameController.text.trim(),
         role: _selectedRole,
-        specialization: _specializationController.text.trim().isEmpty
-            ? null
-            : _specializationController.text.trim(),
-        // 💡 PASSAGE DU CHEMIN DE L'IMAGE
-        profileImageUrl: _profileImagePath, 
+        profileImageUrl: _profileImagePath,
       );
 
       if (!mounted) return;
 
       if (result['success']) {
-        // Inscription réussie
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 2),
+        // ✅ Compte créé, rediriger vers l'onboarding
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => OnboardingPage(
+              role: _selectedRole,
+            ),
           ),
         );
-        
-        // Retourner à la page précédente (ou login)
-        Navigator.of(context).pop(true);
       } else {
         // Afficher l'erreur
         ScaffoldMessenger.of(context).showSnackBar(
@@ -236,7 +231,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 Container(
                   padding: const EdgeInsets.all(AppSizes.paddingL),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withAlpha((0.1 * 255).round()),
                     borderRadius: BorderRadius.circular(AppSizes.radiusL),
                   ),
                   child: Row(
@@ -277,16 +272,32 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: AppSizes.paddingM),
 
-                // Nom d'utilisateur
+                // Email pour la connexion et l'inscription
                 TextFormField(
-                  controller: _usernameController,
+                  controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: 'Nom d\'utilisateur ',
-                    hintText: 'Ex: jdupont',
-                    prefixIcon: Icon(Icons.account_circle_outlined),
+                    labelText: 'Email',
+                    hintText: 'Ex: jean.dupont@example.com',
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  validator: _validateUsername,
+                  validator: _validateEmail,
+                  enabled: !_isLoading,
+                ),
+
+                const SizedBox(height: AppSizes.paddingM),
+
+                // Téléphone
+                TextFormField(
+                  controller: _telephoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Téléphone',
+                    hintText: 'Ex: 0612345678',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
                   enabled: !_isLoading,
                 ),
 
@@ -297,7 +308,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Mot de passe ',
-                    hintText: 'Au moins 6 caractères',
+                    hintText: 'Au moins 8 caractères',
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -365,7 +376,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       children: [
                         CircleAvatar(
                           radius: 50,
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          backgroundColor: AppColors.primary.withAlpha((0.1 * 255).round()),
                           backgroundImage: _profileImagePath != null && File(_profileImagePath!).existsSync()
                               ? FileImage(File(_profileImagePath!)) as ImageProvider
                               : null,
@@ -408,7 +419,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                 // Rôle
                 DropdownButtonFormField<String>(
-                  value: _selectedRole,
+                  initialValue: _selectedRole,
                   decoration: const InputDecoration(
                     labelText: 'Rôle ',
                     prefixIcon: Icon(Icons.badge_outlined),
@@ -426,21 +437,6 @@ class _RegisterPageState extends State<RegisterPage> {
                               _selectedRole = value!;
                             });
                           },
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Spécialisation
-                TextFormField(
-                  controller: _specializationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Spécialisation',
-                    hintText: 'Ex: Oncologue, Pédiatre...',
-                    prefixIcon: Icon(Icons.medical_services_outlined),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.done,
-                  enabled: !_isLoading,
                 ),
 
                 const SizedBox(height: AppSizes.paddingXL),

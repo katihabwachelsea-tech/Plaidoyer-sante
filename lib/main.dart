@@ -3,22 +3,24 @@
 import 'package:flutter/material.dart';
 import 'widgets/metric_card.dart';
 import 'pages/home_page.dart';
-import 'widgets/placeholder_page.dart';
 import 'pages/add_patient.dart';
 import 'pages/statistics_page.dart';
-import 'pages/ai_chat_page.dart';
 import 'pages/SponsorPage.dart';
 import 'pages/login_page.dart';
-import 'pages/profil_page.dart'; // ✅ Import de la vraie page de profil
+import 'pages/profil_page.dart';
+import 'pages/patient_home_page.dart';
+import 'pages/medecin/medecin_navigation.dart';
 import 'services/auth_service.dart';
-import 'services/settings_service.dart';
+import 'services/app_data_mode.dart';
+import 'models/user.dart';
 
 void main() async {
-  //  Initialiser Flutter
   WidgetsFlutterBinding.ensureInitialized();
 
-  
-  
+  // Passer en mode production — désactive toutes les données mockées
+  // et force l'utilisation des vrais endpoints Laravel.
+  AppDataMode.enableProductionMode();
+
   runApp(const PlaidoyerSanteApp());
 }
 
@@ -37,7 +39,7 @@ class PlaidoyerSanteApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
 
       // L'écran de démarrage est la vérification d'authentification
-      home: const AuthCheck(), 
+      home: const LoginPage(),
 
       // Configuration des routes
       routes: {
@@ -63,7 +65,8 @@ class AuthCheck extends StatefulWidget {
 
 class _AuthCheckState extends State<AuthCheck> {
   bool _isLoggedIn = false;
-  bool _isLoading = true; 
+  bool _isLoading = true;
+  String? _userRole;
 
   @override
   void initState() {
@@ -73,13 +76,16 @@ class _AuthCheckState extends State<AuthCheck> {
 
   Future<void> _checkLoginStatus() async {
     final authService = AuthService.instance;
-    
-    final isLoggedIn = authService.isLoggedIn(); 
+
+    // Attendre la vérification du token stocké
+    final isLoggedIn = await authService.isLoggedIn();
+    final role = await authService.getStoredRole();
 
     if (mounted) {
       setState(() {
         _isLoggedIn = isLoggedIn;
-        _isLoading = false; 
+        _isLoading = false;
+        _userRole = role;
       });
     }
   }
@@ -103,7 +109,7 @@ class _AuthCheckState extends State<AuthCheck> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withAlpha((0.3 * 255).round()),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -132,8 +138,15 @@ class _AuthCheckState extends State<AuthCheck> {
       );
     }
 
-    // Si connecté → App principale, sinon → Page de connexion
-    return _isLoggedIn ? const MainNavigation() : const LoginPage();
+    if (!_isLoggedIn) return const LoginPage();
+
+    if (_userRole == User.rolePatient) {
+      return const PatientHomePage();
+    }
+    if (_userRole == User.roleDoctor) {
+      return const MedecinNavigation();
+    }
+    return const MainNavigation();
   }
 }
 
