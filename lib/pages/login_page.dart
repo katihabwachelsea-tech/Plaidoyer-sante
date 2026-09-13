@@ -16,7 +16,8 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -24,30 +25,44 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _animController.forward();
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'L\'email est requis';
-    }
+    if (value == null || value.trim().isEmpty) return 'L\'email est requis';
     if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(value.trim())) {
-      return 'Entrez une adresse email valide';
+      return 'Adresse email invalide';
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Le mot de passe est requis';
-    }
-    if (value.length < 6) {
-      return 'Au moins 6 caractères requis';
-    }
+    if (value == null || value.isEmpty) return 'Le mot de passe est requis';
+    if (value.length < 6) return 'Au moins 6 caractères requis';
     return null;
   }
 
@@ -55,7 +70,6 @@ class _LoginPageState extends State<LoginPage> {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const RegisterPage()),
     );
-
     if (mounted && result == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -68,10 +82,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
@@ -85,18 +96,17 @@ class _LoginPageState extends State<LoginPage> {
 
       if (result['success']) {
         final userRole = authService.currentUser?.role;
-
         if (userRole == User.rolePatient) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const PatientNavigation()),
+            MaterialPageRoute(builder: (_) => const PatientNavigation()),
           );
         } else if (userRole == User.roleDoctor) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MedecinNavigation()),
+            MaterialPageRoute(builder: (_) => const MedecinNavigation()),
           );
         } else {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainNavigation()),
+            MaterialPageRoute(builder: (_) => const MainNavigation()),
           );
         }
       } else {
@@ -105,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
             content: Text(result['message']),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -113,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: $e'),
+            content: Text('Erreur de connexion : $e'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -126,172 +136,345 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: Form(
-              key: _formKey,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Icon(
-                          Icons.calendar_month_rounded,
-                          size: 36,
-                          color: AppColors.textOnPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      AppConstants.appName,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.4,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      AppConstants.appSlogan,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                    ),
-                    const SizedBox(height: 28),
-                    Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.border),
-                      ),
+      body: Stack(
+        children: [
+          // ── Photo de fond ──────────────────────────────────────────
+          SizedBox.expand(
+            child: Image.asset(
+              'assets/images/marcelo-leal-k7ll1hpdhFA-unsplash.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          // ── Dégradé sombre en bas pour lisibilité ─────────────────
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.0, 0.35, 1.0],
+                colors: [
+                  const Color(0xFF0B3D6B).withOpacity(0.55),
+                  const Color(0xFF0B3D6B).withOpacity(0.70),
+                  const Color(0xFF071F38).withOpacity(0.97),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Contenu ───────────────────────────────────────────────
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: size.height * 0.04,
+                ),
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'Connexion',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Patient ou médecin — le même accès.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                          ),
+                          // ── Logo + titre ───────────────────────
+                          _buildHeader(context),
+                          const SizedBox(height: 36),
+
+                          // ── Carte de connexion ─────────────────
+                          _buildLoginCard(context),
                           const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _emailController,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                              hintText: 'exemple@email.com',
-                              prefixIcon: Icon(Icons.mail_outline_rounded),
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            validator: _validateEmail,
-                            enabled: !_isLoading,
-                          ),
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: _passwordController,
-                            decoration: InputDecoration(
-                              labelText: 'Mot de passe',
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                ),
-                                onPressed: () {
-                                  setState(() => _obscurePassword = !_obscurePassword);
-                                },
-                              ),
-                            ),
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            validator: _validatePassword,
-                            enabled: !_isLoading,
-                            onFieldSubmitted: (_) => _login(),
-                          ),
-                          const SizedBox(height: 22),
-                          SizedBox(
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: AppColors.textOnPrimary,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.textOnPrimary,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Se connecter',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                            ),
-                          ),
+
+                          // ── Lien inscription ───────────────────
+                          _buildRegisterLink(),
+
+                          const SizedBox(height: 16),
+
+                          // ── Badges de confiance ────────────────
+                          _buildTrustBadges(),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: _isLoading ? null : _goToRegisterPage,
-                      child: Text.rich(
-                        TextSpan(
-                          text: 'Pas encore de compte ? ',
-                          style: const TextStyle(color: AppColors.textSecondary),
-                          children: [
-                            TextSpan(
-                              text: 'Créer un compte',
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Column(
+      children: [
+        // Icône avec halo
+        Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+          ),
+          child: Center(
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.5),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.health_and_safety_rounded,
+                size: 32,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          AppConstants.appName,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.25)),
+          ),
+          child: Text(
+            AppConstants.appSlogan,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.9),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.97),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // En-tête carte
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.login_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Connexion',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Patient ou médecin — le même accès.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 6),
+            Divider(color: AppColors.border, height: 24),
+
+            // Champ email
+            TextFormField(
+              controller: _emailController,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                hintText: 'exemple@email.com',
+                prefixIcon: Icon(Icons.mail_outline_rounded,
+                    color: AppColors.primary),
+                labelStyle: TextStyle(color: AppColors.textSecondary),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: _validateEmail,
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 14),
+
+            // Champ mot de passe
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Mot de passe',
+                prefixIcon: Icon(Icons.lock_outline_rounded,
+                    color: AppColors.primary),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              validator: _validatePassword,
+              enabled: !_isLoading,
+              onFieldSubmitted: (_) => _login(),
+            ),
+            const SizedBox(height: 22),
+
+            // Bouton connexion
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _login,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.login_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Se connecter',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRegisterLink() {
+    return TextButton(
+      onPressed: _isLoading ? null : _goToRegisterPage,
+      child: RichText(
+        text: TextSpan(
+          text: 'Pas encore de compte ? ',
+          style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 14),
+          children: const [
+            TextSpan(
+              text: 'Créer un compte',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                decoration: TextDecoration.underline,
+                decorationColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrustBadges() {
+    final badges = [
+      (Icons.verified_user_rounded, 'Données sécurisées'),
+      (Icons.local_hospital_rounded, 'Certifié médical'),
+      (Icons.lock_rounded, 'Chiffrement SSL'),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: badges.map((badge) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(badge.$1, size: 13, color: Colors.white.withOpacity(0.65)),
+              const SizedBox(width: 4),
+              Text(
+                badge.$2,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withOpacity(0.65),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

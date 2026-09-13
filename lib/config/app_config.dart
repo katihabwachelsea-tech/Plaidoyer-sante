@@ -9,7 +9,7 @@ class AppConfig {
   // ── URL du backend Laravel ────────────────────────────────────────────────
   // Émulateur Android : 10.0.2.2  (redirige vers localhost de la machine hôte)
   // Appareil physique  : IP LAN de ta machine (ex: 192.168.x.x ou 172.20.10.2)
-  static const String _host = '172.20.10.2';
+  static const String _host = '192.168.30.31';
   static const int _port = 8000;
 
   static const String baseUrl = 'http://$_host:$_port/api';
