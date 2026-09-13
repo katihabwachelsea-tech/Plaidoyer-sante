@@ -5,6 +5,7 @@ import '../../models/appointment.dart';
 import '../../services/medecin_api_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/metric_card.dart';
+import 'consultation_form_page.dart';
 import 'medecin_appointments_page.dart';
 
 class MedecinHomePage extends StatefulWidget {
@@ -17,9 +18,14 @@ class MedecinHomePage extends StatefulWidget {
 class _MedecinHomePageState extends State<MedecinHomePage> {
   final _api = MedecinApiService.instance;
   int _todayCount = 0;
+  int _upcomingCount = 0;
+  int _patientsCount = 0;
+  int _creneauxCount = 0;
+  int _consultationsCount = 0;
   bool _isLoading = true;
   String? _error;
-  String _doctorName = 'Médecin'; // sera remplacé par le vrai nom via API
+  String _doctorName = 'Médecin';
+  List<Appointment> _today = [];
 
   @override
   void initState() {
@@ -33,17 +39,17 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       _error = null;
     });
     try {
-      // Charger le nombre de RDV du jour ET le profil en parallèle
-      final results = await Future.wait([
-        _api.getTodayAppointmentsCount(),
-        _api.getProfile().catchError((_) => _fallbackProfile()),
-      ]);
-
+      final data = await _api.getDashboard();
+      final today = await _api.getAppointments(todayOnly: true);
       if (mounted) {
         setState(() {
-          _todayCount = results[0] as int;
-          final profile = results[1] as MedecinProfile;
-          _doctorName = profile.nom ?? 'Médecin';
+          _today = today;
+          _todayCount = _asInt(data['today_count']);
+          _upcomingCount = _asInt(data['upcoming_count']);
+          _patientsCount = _asInt(data['patients_count']);
+          _creneauxCount = _asInt(data['creneaux_week_count']);
+          _consultationsCount = _asInt(data['consultations_count']);
+          _doctorName = (data['nom'] ?? 'Médecin').toString();
           _isLoading = false;
         });
       }
@@ -58,6 +64,11 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
         });
       }
     }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse('$value') ?? 0;
   }
 
   MedecinProfile _fallbackProfile() {
@@ -84,23 +95,23 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       _ShortcutItem(
         icon: Icons.calendar_month_rounded,
         label: 'Agenda',
-        subtitle: '3 créneaux',
+        subtitle: '$_creneauxCount cette semaine',
         color: const Color(0xFF14B8A6),
         onTap: () => _openAppointments(context),
       ),
       _ShortcutItem(
         icon: Icons.medical_services_rounded,
         label: 'Consultations',
-        subtitle: '2 en cours',
+        subtitle: '$_consultationsCount dossiers',
         color: const Color(0xFFF59E0B),
         onTap: () => _openAppointments(context),
       ),
     ];
 
     final summaryCards = [
-      _SummaryItem(title: 'Patients', value: '48', meta: 'Actifs ce mois', color: AppColors.primary),
-      _SummaryItem(title: 'Taux suivi', value: '92%', meta: 'Très bon', color: const Color(0xFF14B8A6)),
-      _SummaryItem(title: 'Disponibilité', value: '14h', meta: 'À confirmer', color: const Color(0xFF3B82F6)),
+      _SummaryItem(title: 'Patients', value: '$_patientsCount', meta: 'Suivis confirmés', color: AppColors.primary),
+      _SummaryItem(title: 'À venir', value: '$_upcomingCount', meta: 'RDV confirmés', color: const Color(0xFF14B8A6)),
+      _SummaryItem(title: 'Créneaux', value: '$_creneauxCount', meta: '7 prochains jours', color: const Color(0xFF3B82F6)),
     ];
 
     return Scaffold(
@@ -138,7 +149,9 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Votre journée est bien remplie. Voici le résumé du moment.',
+                            _todayCount == 0
+                                ? 'Aucun rendez-vous confirmé aujourd’hui.'
+                                : '$_todayCount rendez-vous confirmé(s) aujourd’hui.',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.white70,
                             ),
@@ -227,6 +240,63 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                       }).toList(),
                     ),
                     const SizedBox(height: 24),
+                    Text(
+                      'Aujourd’hui',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_today.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Text(
+                          'Les rendez-vous payés du jour apparaîtront ici.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    else
+                      ..._today.map((rdv) => Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(rdv.patientDisplayName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text(rdv.motif, style: const TextStyle(color: AppColors.textSecondary)),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: FilledButton(
+                                    onPressed: () async {
+                                      final done = await Navigator.push<bool>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ConsultationFormPage(appointment: rdv),
+                                        ),
+                                      );
+                                      if (done == true) _loadDashboard();
+                                    },
+                                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                                    child: const Text('Consulter'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       Container(

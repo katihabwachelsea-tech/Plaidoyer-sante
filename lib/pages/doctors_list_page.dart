@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/metric_card.dart';
-import 'patient/doctor_detail_page.dart';
+import 'patient/doctor_booking_page.dart';
 
 class DoctorsListPage extends StatefulWidget {
   final String? initialSpecialty;
@@ -86,8 +86,11 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
             .toLowerCase();
         final specialite =
             (doc['specialite'] ?? '').toString().toLowerCase();
+        final hopital = (doc['hopital'] ?? '').toString().toLowerCase();
         final searchTerm = _searchController.text.toLowerCase();
-        return name.contains(searchTerm) || specialite.contains(searchTerm);
+        return name.contains(searchTerm) ||
+            specialite.contains(searchTerm) ||
+            hopital.contains(searchTerm);
       }).toList();
     }
 
@@ -137,7 +140,7 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                   TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Nom du médecin, spécialité...',
+                      hintText: 'Nom, spécialité ou hôpital',
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
@@ -354,14 +357,15 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
+                  final map = Map<String, dynamic>.from(doctor as Map);
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => DoctorDetailPage(doctor: doctor),
+                      builder: (_) => DoctorBookingPage(doctor: map),
                     ),
                   );
                 },
                 icon: const Icon(Icons.calendar_today),
-                label: const Text('Prendre rendez-vous'),
+                label: const Text('Prendre RDV'),
               ),
             ),
           ],

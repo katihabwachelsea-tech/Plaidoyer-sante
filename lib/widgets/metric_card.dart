@@ -10,42 +10,42 @@ class AppConstants {
   static const String statsEndpoint = '/statistics';
 
   // Textes de l'application
-  static const String appName = 'Plaidoiyer Santé';
-  static const String appSlogan = 'Suivi des patients atteints du cancer';
+  static const String appName = 'Plaidoyer Santé';
+  static const String appSlogan = 'Vos soins, vos preuves.';
 }
 
 class AppColors {
-  // Couleurs principales basées sur l'UI
-  static const Color primary = Color(0xFF6C63FF); // Violet principal
-  static const Color primaryLight = Color(0xFF9C95FF); // Violet clair
-  static const Color primaryDark = Color(0xFF4C46CC); // Violet foncé
-  static const Color accent = Colors.orange;
+  // Palette médicale — bleu confiance, fond clair, vert « disponible »
+  static const Color primary = Color(0xFF107ACA);
+  static const Color primaryLight = Color(0xFF4DA3E0);
+  static const Color primaryDark = Color(0xFF0B5F9A);
+  static const Color accent = Color(0xFF0E9F6E);
 
   // Couleurs des cartes métriques
-  static const Color tealCard = Color(0xFF4ECDC4); // Carte turquoise
-  static const Color purpleCard = Color(0xFF9B59B6); // Carte violette
-  static const Color orangeCard = Color(0xFFE67E22); // Carte orange
-  static const Color greenCard = Color(0xFF2ECC71); // Carte verte
-  static const Color blueCard = Color(0xFF3498DB); // Carte bleue
-  static const Color pinkCard = Color(0xFFE91E63); // Carte rose
+  static const Color tealCard = Color(0xFF0E9F6E);
+  static const Color purpleCard = Color(0xFF107ACA);
+  static const Color orangeCard = Color(0xFFF59E0B);
+  static const Color greenCard = Color(0xFF0E9F6E);
+  static const Color blueCard = Color(0xFF107ACA);
+  static const Color pinkCard = Color(0xFFE24B4A);
 
   // Couleurs de fond et surfaces
-  static const Color background = Color(0xFFF8F9FA); // Fond principal
-  static const Color cardBackground = Color(0xFFFFFFFF); // Fond des cartes
-  static const Color surface = Color(0xFFFFFFFF); // Surface
-  static const Color surfaceVariant = Color(0xFFF5F5F5); // Variante de surface
+  static const Color background = Color(0xFFF4F8FB);
+  static const Color cardBackground = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFEEF3F8);
 
   // Couleurs de texte
-  static const Color textPrimary = Color(0xFF2C3E50); // Texte principal
-  static const Color textSecondary = Color(0xFF7F8C8D); // Texte secondaire
-  static const Color textLight = Color(0xFFBDC3C7); // Texte clair
-  static const Color textOnPrimary = Color(0xFFFFFFFF); // Texte sur couleur primaire
+  static const Color textPrimary = Color(0xFF1F2933);
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color textLight = Color(0xFF9AA3AF);
+  static const Color textOnPrimary = Color(0xFFFFFFFF);
 
   // Couleurs d'état
-  static const Color success = Color(0xFF27AE60); // Succès
-  static const Color warning = Color(0xFFF39C12); // Avertissement
-  static const Color error = Color(0xFFE74C3C); // Erreur
-  static const Color info = Color(0xFF3498DB); // Information
+  static const Color success = Color(0xFF0E9F6E);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color error = Color(0xFFE24B4A);
+  static const Color info = Color(0xFF107ACA);
 
   // Couleurs des graphiques
   static const Color chartLine = Color(0xFF34495E); // Ligne de graphique
@@ -63,16 +63,15 @@ class AppTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    scaffoldBackgroundColor: AppColors.background,
     colorScheme: const ColorScheme.light(
       primary: AppColors.primary,
-      secondary: AppColors.primaryLight,
+      secondary: AppColors.accent,
       surface: AppColors.surface,
-      background: AppColors.background,
       error: AppColors.error,
       onPrimary: AppColors.textOnPrimary,
       onSecondary: AppColors.textOnPrimary,
       onSurface: AppColors.textPrimary,
-      onBackground: AppColors.textPrimary,
       onError: AppColors.textOnPrimary,
     ),
 
@@ -161,8 +160,20 @@ class AppTheme {
         borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
       filled: true,
-      fillColor: AppColors.surfaceVariant,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      fillColor: AppColors.cardBackground,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.cardBackground,
+      indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? AppColors.primary : AppColors.textSecondary,
+        );
+      }),
     ),
   );
 

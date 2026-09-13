@@ -173,4 +173,25 @@ class MedecinApiService {
       Map<String, dynamic>.from(data['data'] as Map),
     );
   }
+
+  /// GET /api/medecin/dashboard — indicateurs réels du cabinet
+  Future<Map<String, dynamic>> getDashboard() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/medecin/dashboard'), headers: await _headers())
+        .timeout(_timeout);
+    _checkStatus(response);
+    final data = _decode(response);
+    return Map<String, dynamic>.from(data['data'] as Map);
+  }
+
+  /// POST /api/medecin/appointments/{id}/cancel
+  Future<void> cancelAppointment(int id) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/medecin/appointments/$id/cancel'),
+          headers: await _headers(),
+        )
+        .timeout(_timeout);
+    _checkStatus(response);
+  }
 }

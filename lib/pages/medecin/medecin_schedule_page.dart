@@ -212,7 +212,7 @@ class _MedecinSchedulePageState extends State<MedecinSchedulePage> {
                   ),
                 );
               }),
-          ],e 
+          ],
         ),
       ),
     );

@@ -8,7 +8,7 @@ import 'pages/statistics_page.dart';
 import 'pages/SponsorPage.dart';
 import 'pages/login_page.dart';
 import 'pages/profil_page.dart';
-import 'pages/patient_home_page.dart';
+import 'pages/patient/patient_navigation.dart';
 import 'pages/medecin/medecin_navigation.dart';
 import 'services/auth_service.dart';
 import 'services/app_data_mode.dart';
@@ -141,7 +141,7 @@ class _AuthCheckState extends State<AuthCheck> {
     if (!_isLoggedIn) return const LoginPage();
 
     if (_userRole == User.rolePatient) {
-      return const PatientHomePage();
+      return const PatientNavigation();
     }
     if (_userRole == User.roleDoctor) {
       return const MedecinNavigation();

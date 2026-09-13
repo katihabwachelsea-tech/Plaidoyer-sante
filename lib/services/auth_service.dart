@@ -239,7 +239,7 @@ class AuthService {
         queryParameters['search'] = searchQuery;
       }
 
-      final uri = Uri.parse('$baseUrl/medecins');
+      final uri = Uri.parse('$baseUrl/patient/doctors');
       final uriWithParams = queryParameters.isNotEmpty
           ? uri.replace(queryParameters: queryParameters)
           : uri;

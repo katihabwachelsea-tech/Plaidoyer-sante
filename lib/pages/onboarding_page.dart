@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../widgets/metric_card.dart';
 import '../main.dart';
-import 'patient_home_page.dart';
+import 'patient/patient_navigation.dart';
 import 'medecin/medecin_navigation.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -110,7 +110,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         if (widget.role == User.roleDoctor) {
           destination = const MedecinNavigation();
         } else if (widget.role == User.rolePatient) {
-          destination = const PatientHomePage();
+          destination = const PatientNavigation();
         } else {
           destination = const MainNavigation();
         }

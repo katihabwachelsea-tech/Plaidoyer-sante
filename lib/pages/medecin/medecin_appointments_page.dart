@@ -300,21 +300,32 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _startConsultation(rdv),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Démarrer la consultation'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.textOnPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _cancel(rdv),
+                        child: const Text('Annuler'),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _startConsultation(rdv),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Consulter'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.textOnPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -322,6 +333,34 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
         }),
       ],
     );
+  }
+
+  Future<void> _cancel(Appointment rdv) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Annuler ce rendez-vous ?'),
+        content: Text('Le RDV de ${rdv.patientDisplayName} sera annulé.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Annuler')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.cancelAppointment(rdv.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rendez-vous annulé'), backgroundColor: AppColors.success),
+        );
+      }
+      await _loadAppointments();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   Future<void> _startConsultation(Appointment rdv) async {

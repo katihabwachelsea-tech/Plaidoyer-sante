@@ -170,11 +170,13 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
             TextFormField(
               controller: _ordonnanceController,
               decoration: const InputDecoration(
-                labelText: 'Ordonnance',
-                hintText: 'Traitement prescrit',
+                labelText: 'Ordonnance *',
+                hintText: 'Ex. Paracétamol 500 mg, 2 fois par jour',
                 border: OutlineInputBorder(),
               ),
               maxLines: 4,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Ordonnance requise' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(

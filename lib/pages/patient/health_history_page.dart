@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../services/patient_api_service.dart';
+import '../../widgets/metric_card.dart';
+import 'payment_page.dart';
 
 class HealthHistoryPage extends StatefulWidget {
   final int initialTab;
@@ -9,234 +13,147 @@ class HealthHistoryPage extends StatefulWidget {
   State<HealthHistoryPage> createState() => _HealthHistoryPageState();
 }
 
-class _HealthHistoryPageState extends State<HealthHistoryPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _HealthHistoryPageState extends State<HealthHistoryPage> {
+  final _api = PatientApiService.instance;
+  List<Map<String, dynamic>> _records = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
+    _load();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await _api.getMedicalRecord();
+      if (mounted) setState(() => _records = list);
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Historique santé'),
-        backgroundColor: const Color(0xFF6C63FF),
-        foregroundColor: Colors.white,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'Analyses'),
-            Tab(text: 'Urgences'),
-          ],
-        ),
+        title: const Text('Dossier médical'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textOnPrimary,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _HistoryList(
-            title: 'Analyses',
-            accent: const Color(0xFF14B8A6),
-            items: [
-              _HistoryItem(
-                label: 'Analyse de sang',
-                date: '12 août 2026',
-                status: 'Normal',
-                note: 'Globules rouges dans la zone attendue.',
-                value: '92% / conforme',
-              ),
-              _HistoryItem(
-                label: 'Glycémie',
-                date: '08 août 2026',
-                status: 'À surveiller',
-                note: 'Légère élévation, à suivre avec le médecin.',
-                value: '1.2 g/L',
-              ),
-              _HistoryItem(
-                label: 'Électrolytes',
-                date: '02 août 2026',
-                status: 'Normal',
-                note: 'Hydratation et équilibre ionique corrects.',
-                value: 'Stable',
-              ),
-              _HistoryItem(
-                label: 'Bilan cardiaque',
-                date: '25 juillet 2026',
-                status: 'Normal',
-                note: 'Aucun signe de trouble particulier.',
-                value: 'Bonne stabilité',
-              ),
-            ],
-          ),
-          _HistoryList(
-            title: 'Urgences',
-            accent: const Color(0xFFEF4444),
-            items: [
-              _HistoryItem(
-                label: 'Douleur abdominale',
-                date: 'Aujourd’hui • 09:15',
-                status: 'À surveiller',
-                note: 'Symptôme signalé et suivi rapproché conseillé.',
-                value: 'Moyen',
-              ),
-              _HistoryItem(
-                label: 'Fatigue intense',
-                date: 'Hier • 18:40',
-                status: 'Moyen',
-                note: 'Un repos plus important est recommandé.',
-                value: 'Signalé',
-              ),
-              _HistoryItem(
-                label: 'Suivi de vigilance',
-                date: 'Il y a 3 jours',
-                status: 'OK',
-                note: 'Évolution stable après la consultation.',
-                value: 'Contrôlé',
-              ),
-            ],
-          ),
-        ],
-      ),
+      body: RefreshIndicator(onRefresh: _load, child: _body()),
     );
   }
-}
 
-class _HistoryList extends StatelessWidget {
-  final String title;
-  final Color accent;
-  final List<_HistoryItem> items;
-
-  const _HistoryList({
-    required this.title,
-    required this.accent,
-    required this.items,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...items.map((item) => _HistoryCard(item: item, accent: accent)),
-      ],
-    );
-  }
-}
-
-class _HistoryCard extends StatelessWidget {
-  final _HistoryItem item;
-  final Color accent;
-
-  const _HistoryCard({required this.item, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(12),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _body() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+    if (_error != null) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: accent.withAlpha((0.12 * 255).round()),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  item.status,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            item.date,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            item.note,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(6),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          ElevatedButton(onPressed: _load, child: const Text('Réessayer')),
+        ],
+      );
+    }
+    if (_records.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 80),
+          Center(
             child: Text(
-              item.value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: accent,
-              ),
+              'Aucune consultation enregistrée.\nVos comptes rendus apparaîtront ici après le rendez-vous.',
+              textAlign: TextAlign.center,
             ),
           ),
         ],
+      );
+    }
+
+    final fmt = DateFormat('d MMM yyyy', 'fr_FR');
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      itemCount: _records.length,
+      itemBuilder: (context, index) {
+        final item = _records[index];
+        final appt = item['appointment'] as Map<String, dynamic>?;
+        final medecin = appt?['medecin'] as Map<String, dynamic>?;
+        final doctor = medecin?['user']?['nom'] ?? 'Médecin';
+        final service = (appt?['service'] as Map?)?['nom_service'] ?? 'Consultation';
+        final raw = (item['date_consultation'] ?? '').toString();
+        var date = raw;
+        try {
+          date = fmt.format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+        } catch (_) {}
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(doctor, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('$service • $date', style: TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 10),
+              Text('Diagnostic', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+              Text((item['diagnostic'] ?? '—').toString()),
+              if ((item['ordonnance'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Ordonnance', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(item['ordonnance'].toString()),
+              ],
+              if ((item['conseils_ia'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Notes du médecin', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(item['conseils_ia'].toString()),
+              ],
+              _invoiceLine(item),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _invoiceLine(Map<String, dynamic> item) {
+    final appt = item['appointment'];
+    if (appt is! Map) return const SizedBox.shrink();
+    final invoice = appt['invoice'];
+    if (invoice is! Map || invoice['montant'] == null) return const SizedBox.shrink();
+    final paid = invoice['statut_paiement'] == 'Paye';
+    final amount = formatFbu(num.tryParse('${invoice['montant']}'));
+    final ref = invoice['transaction_id'];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        paid
+            ? 'Facture $amount · Payée${ref == null ? '' : ' · $ref'}'
+            : 'Facture $amount · Non payée',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: paid ? AppColors.success : AppColors.warning,
+        ),
       ),
     );
   }
-}
-
-class _HistoryItem {
-  final String label;
-  final String date;
-  final String status;
-  final String note;
-  final String value;
-
-  const _HistoryItem({
-    required this.label,
-    required this.date,
-    required this.status,
-    required this.note,
-    required this.value,
-  });
 }
