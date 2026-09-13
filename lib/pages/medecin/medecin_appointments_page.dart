@@ -1,13 +1,10 @@
-// lib/pages/medecin/medecin_appointments_page.dart
-//
-// Affiche UNIQUEMENT les RDV statut == Confirme (déjà payés via API paiement).
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/medecin_api_service.dart';
 import '../../widgets/metric_card.dart';
 import 'consultation_form_page.dart';
+import 'medecin_ui.dart';
 
 class MedecinAppointmentsPage extends StatefulWidget {
   const MedecinAppointmentsPage({super.key});
@@ -21,6 +18,7 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   List<Appointment> _appointments = [];
   bool _isLoading = true;
   String? _error;
+  String _filter = 'today';
 
   @override
   void initState() {
@@ -51,288 +49,19 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Mes rendez-vous'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadAppointments,
-        child: _buildBody(),
-      ),
-    );
-  }
+  List<Appointment> get _visible {
+    final now = DateTime.now();
+    bool isSameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    switch (_filter) {
+      case 'today':
+        return _appointments.where((a) => isSameDay(a.dateHeure.toLocal(), now)).toList();
+      case 'upcoming':
+        return _appointments.where((a) => a.dateHeure.toLocal().isAfter(now)).toList();
+      default:
+        return _appointments;
     }
-    if (_error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Icon(Icons.cloud_off, size: 48, color: Colors.grey[400]),
-                const SizedBox(height: 12),
-                Text(_error!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadAppointments,
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-    if (_appointments.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 80),
-          Center(
-            child: Text(
-              'Aucun rendez-vous confirmé.\n'
-              'Les RDV apparaissent ici uniquement après paiement.',
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      );
-    }
-
-    final dateFormat = DateFormat('EEE d MMM yyyy • HH:mm', 'fr_FR');
-    final todayCount = _appointments.where((appointment) {
-      final date = appointment.dateHeure.toLocal();
-      final now = DateTime.now();
-      return date.year == now.year && date.month == now.month && date.day == now.day;
-    }).length;
-
-    final nextRdv = _appointments.reduce((a, b) => a.dateHeure.isBefore(b.dateHeure) ? a : b);
-
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, Color(0xFF1565C0)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Agenda de la journée',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$todayCount rendez-vous à venir',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.calendar_today_rounded, color: Colors.white, size: 26),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _MiniStatCard(
-                title: 'Confirmés',
-                value: '${_appointments.length}',
-                color: AppColors.success,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MiniStatCard(
-                title: 'Prochain RDV',
-                value: DateFormat('dd/MM', 'fr_FR').format(nextRdv.dateHeure.toLocal()),
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'Rendez-vous confirmés',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ..._appointments.map((rdv) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.07),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                      child: Text(
-                        rdv.patientDisplayName.isNotEmpty
-                            ? rdv.patientDisplayName[0].toUpperCase()
-                            : 'P',
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            rdv.patientDisplayName,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            rdv.motif,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: AppColors.success.withValues(alpha: 0.32)),
-                      ),
-                      child: const Text(
-                        'Confirmé',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        dateFormat.format(rdv.dateHeure.toLocal()),
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                if (rdv.paymentRef != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.payments_rounded, size: 18, color: AppColors.success),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Paiement: ${rdv.paymentRef}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _cancel(rdv),
-                        child: const Text('Annuler'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _startConsultation(rdv),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Consulter'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.textOnPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
   }
 
   Future<void> _cancel(Appointment rdv) async {
@@ -366,53 +95,246 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   Future<void> _startConsultation(Appointment rdv) async {
     final done = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => ConsultationFormPage(appointment: rdv),
+      MaterialPageRoute(builder: (_) => ConsultationFormPage(appointment: rdv)),
+    );
+    if (done == true) _loadAppointments();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: _loadAppointments,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                decoration: const BoxDecoration(gradient: MedecinDecor.headerGradient),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Agenda',
+                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_appointments.length} rendez-vous confirmés et payés',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    _FilterChip(label: 'Aujourd’hui', selected: _filter == 'today', onTap: () => setState(() => _filter = 'today')),
+                    const SizedBox(width: 8),
+                    _FilterChip(label: 'À venir', selected: _filter == 'upcoming', onTap: () => setState(() => _filter = 'upcoming')),
+                    const SizedBox(width: 8),
+                    _FilterChip(label: 'Tous', selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+                  ],
+                ),
+              ),
+            ),
+            if (_isLoading)
+              const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
+            else if (_error != null)
+              SliverFillRemaining(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        ElevatedButton(onPressed: _loadAppointments, child: const Text('Réessayer')),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else if (_visible.isEmpty)
+              const SliverFillRemaining(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: EmptyHint(
+                    icon: Icons.event_busy_rounded,
+                    title: 'Aucun rendez-vous ici',
+                    subtitle: 'Les RDV n’apparaissent qu’après paiement du professionnel.',
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                sliver: SliverList.builder(
+                  itemCount: _visible.length,
+                  itemBuilder: (context, index) {
+                    final rdv = _visible[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AppointmentCard(
+                        appointment: rdv,
+                        onConsult: () => _startConsultation(rdv),
+                        onCancel: () => _cancel(rdv),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
-    if (done == true) {
-      _loadAppointments();
-    }
   }
 }
 
-class _MiniStatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color color;
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _MiniStatCard({
-    required this.title,
-    required this.value,
-    required this.color,
+  const _FilterChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(99),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(99),
+            boxShadow: selected ? null : MedecinDecor.cardShadow,
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.navy,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final Appointment appointment;
+  final VoidCallback onConsult;
+  final VoidCallback onCancel;
+
+  const _AppointmentCard({
+    required this.appointment,
+    required this.onConsult,
+    required this.onCancel,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withAlpha((0.25 * 255).round()), width: 1),
-      ),
+    final date = DateFormat('EEE d MMM', 'fr_FR').format(appointment.dateHeure.toLocal());
+    final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
+
+    return MedecinCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              DoctorAvatar(name: appointment.patientDisplayName, radius: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appointment.patientDisplayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    ),
+                    Text(
+                      appointment.motif,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: const Text('Payé', style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.ice,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(child: Text('$date  ·  $time', style: const TextStyle(fontWeight: FontWeight.w700))),
+                if (appointment.paymentRef != null)
+                  Flexible(
+                    child: Text(
+                      appointment.paymentRef!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onCancel,
+                  child: const Text('Annuler'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: onConsult,
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text('Consulter'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

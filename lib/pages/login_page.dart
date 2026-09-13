@@ -447,34 +447,33 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _buildTrustBadges() {
+ /* Widget _buildTrustBadges() {
     final badges = [
-      (Icons.verified_user_rounded, 'Données sécurisées'),
-      (Icons.local_hospital_rounded, 'Certifié médical'),
-      (Icons.lock_rounded, 'Chiffrement SSL'),
+      (Icons.verified_user_rounded, 'Sécurisé'),
+      (Icons.local_hospital_rounded, 'Certifié'),
+      (Icons.lock_rounded, 'SSL'),
     ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 16,
+      runSpacing: 6,
       children: badges.map((badge) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(badge.$1, size: 13, color: Colors.white.withOpacity(0.65)),
-              const SizedBox(width: 4),
-              Text(
-                badge.$2,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withOpacity(0.65),
-                ),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(badge.$1, size: 13, color: Colors.white.withOpacity(0.65)),
+            const SizedBox(width: 4),
+            Text(
+              badge.$2,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withOpacity(0.65),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       }).toList(),
     );
-  }
+  }*/
 }

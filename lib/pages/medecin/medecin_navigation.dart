@@ -1,11 +1,9 @@
-// lib/pages/medecin/medecin_navigation.dart
-
 import 'package:flutter/material.dart';
 import '../../widgets/metric_card.dart';
-import 'medecin_home_page.dart';
 import 'medecin_appointments_page.dart';
-import 'medecin_schedule_page.dart';
+import 'medecin_home_page.dart';
 import 'medecin_profile_page.dart';
+import 'medecin_schedule_page.dart';
 
 class MedecinNavigation extends StatefulWidget {
   const MedecinNavigation({super.key});
@@ -16,39 +14,52 @@ class MedecinNavigation extends StatefulWidget {
 
 class _MedecinNavigationState extends State<MedecinNavigation> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
 
-  final List<Widget> _pages = const [
-    MedecinHomePage(),
-    MedecinAppointmentsPage(),
-    MedecinSchedulePage(),
-    MedecinProfilePage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      MedecinHomePage(onOpenTab: _openTab),
+      const MedecinAppointmentsPage(),
+      const MedecinSchedulePage(),
+      const MedecinProfilePage(),
+    ];
+  }
+
+  void _openTab(int index) => setState(() => _currentIndex = index);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_rounded),
+      body: IndexedStack(index: _currentIndex, children: _pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _openTab,
+        backgroundColor: Colors.white,
+        elevation: 8,
+        shadowColor: AppColors.primary.withValues(alpha: 0.08),
+        indicatorColor: AppColors.ice,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
             label: 'Accueil',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_available_rounded),
+          NavigationDestination(
+            icon: Icon(Icons.event_outlined),
+            selectedIcon: Icon(Icons.event_available_rounded, color: AppColors.primary),
             label: 'RDV',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.schedule_rounded),
+          NavigationDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule_rounded, color: AppColors.primary),
             label: 'Créneaux',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded, color: AppColors.primary),
             label: 'Profil',
           ),
         ],

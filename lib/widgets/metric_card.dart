@@ -16,9 +16,11 @@ class AppConstants {
 
 class AppColors {
   // Palette médicale — bleu confiance, fond clair, vert « disponible »
-  static const Color primary = Color(0xFF107ACA);
-  static const Color primaryLight = Color(0xFF4DA3E0);
-  static const Color primaryDark = Color(0xFF0B5F9A);
+  static const Color primary = Color(0xFF0B6EBD);
+  static const Color primaryLight = Color(0xFF3D9BE0);
+  static const Color primaryDark = Color(0xFF084E87);
+  static const Color ice = Color(0xFFE8F3FC);
+  static const Color navy = Color(0xFF0A3D6B);
   static const Color accent = Color(0xFF0E9F6E);
 
   // Couleurs des cartes métriques
@@ -30,7 +32,7 @@ class AppColors {
   static const Color pinkCard = Color(0xFFE24B4A);
 
   // Couleurs de fond et surfaces
-  static const Color background = Color(0xFFF4F8FB);
+  static const Color background = Color(0xFFF2F7FC);
   static const Color cardBackground = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceVariant = Color(0xFFEEF3F8);

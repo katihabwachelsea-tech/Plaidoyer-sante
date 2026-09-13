@@ -1,6 +1,7 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'widgets/metric_card.dart';
 import 'pages/home_page.dart';
 import 'pages/add_patient.dart';
@@ -16,6 +17,7 @@ import 'models/user.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR');
 
   // Passer en mode production — désactive toutes les données mockées
   // et force l'utilisation des vrais endpoints Laravel.

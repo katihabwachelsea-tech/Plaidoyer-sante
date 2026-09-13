@@ -1,11 +1,10 @@
-// lib/pages/medecin/medecin_profile_page.dart
-
 import 'package:flutter/material.dart';
 import '../../models/appointment.dart';
-import '../../services/medecin_api_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/medecin_api_service.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
+import 'medecin_ui.dart';
 
 class MedecinProfilePage extends StatefulWidget {
   const MedecinProfilePage({super.key});
@@ -27,6 +26,7 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
   late TextEditingController _hopitalController;
   late TextEditingController _biographieController;
   late TextEditingController _disponibiliteController;
+  String? _email;
 
   @override
   void initState() {
@@ -58,6 +58,7 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
     _hopitalController.text = p.hopital;
     _biographieController.text = p.biographie ?? '';
     _disponibiliteController.text = p.disponibilite ?? '';
+    _email = p.email;
   }
 
   Future<void> _loadProfile() async {
@@ -76,11 +77,9 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
         setState(() {
           _nomController.text = user?.fullName ?? '';
           _specialiteController.text = user?.specialization ?? '';
+          _email = user?.email;
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profil local (API : $e)')),
-        );
       }
     }
   }
@@ -99,10 +98,7 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profil mis à jour'),
-            backgroundColor: AppColors.success,
-          ),
+          const SnackBar(content: Text('Profil mis à jour'), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
@@ -133,136 +129,84 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
       );
     }
 
-    final initials = (_nomController.text.isNotEmpty
-            ? _nomController.text
-            : 'Dr')
-        .substring(0, 1)
-        .toUpperCase();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(0),
+          padding: EdgeInsets.zero,
           children: [
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, Color(0xFF1565C0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+              decoration: const BoxDecoration(gradient: MedecinDecor.headerGradient),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  child: Column(
+                    children: [
+                      DoctorAvatar(
+                        name: _nomController.text.isEmpty ? 'Dr' : _nomController.text,
+                        radius: 40,
+                        background: Colors.white,
+                        foreground: AppColors.primary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _nomController.text.isEmpty ? 'Médecin' : _nomController.text,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          _specialiteController.text.isEmpty ? 'Spécialité' : _specialiteController.text,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (_email != null) ...[
+                        const SizedBox(height: 6),
+                        Text(_email!, style: TextStyle(color: Colors.white.withValues(alpha: 0.75))),
+                      ],
+                    ],
+                  ),
                 ),
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CircleAvatar(
-                    radius: 54,
-                    backgroundColor: Colors.white.withValues(alpha: 0.18),
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        fontSize: 42,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  MedecinCard(
+                    child: Column(
+                      children: [
+                        _field(_nomController, 'Nom complet', Icons.person_outline_rounded),
+                        _field(_specialiteController, 'Spécialité', Icons.medical_services_outlined, required: true),
+                        _field(_hopitalController, 'Hôpital / Clinique', Icons.local_hospital_outlined, required: true),
+                        _field(_telephoneController, 'Téléphone', Icons.phone_outlined),
+                        _field(_disponibiliteController, 'Disponibilités', Icons.schedule_outlined, maxLines: 2),
+                        _field(_biographieController, 'Biographie', Icons.info_outline_rounded, maxLines: 3),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    _nomController.text.isNotEmpty ? _nomController.text : 'Médecin',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      _specialiteController.text.isNotEmpty
-                          ? _specialiteController.text
-                          : 'Spécialité',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Informations',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _field(_nomController, 'Nom complet', Icons.person),
-                  _field(_specialiteController, 'Spécialité *', Icons.medical_services,
-                      required: true),
-                  _field(_hopitalController, 'Hôpital / Clinique *', Icons.local_hospital,
-                      required: true),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Contact',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _field(_telephoneController, 'Téléphone', Icons.phone),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Détails professionnels',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _field(_biographieController, 'Biographie', Icons.info_outline,
-                      maxLines: 3),
-                  _field(_disponibiliteController, 'Disponibilités', Icons.schedule,
-                      maxLines: 2),
-                  const SizedBox(height: 28),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: FilledButton.icon(
                       onPressed: _isSaving ? null : _saveProfile,
                       icon: const Icon(Icons.save_rounded),
-                      label: const Text('Enregistrer les modifications'),
-                      style: ElevatedButton.styleFrom(
+                      label: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer'),
+                      style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.textOnPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
                       ),
                     ),
                   ),
-                  if (_isSaving) const SizedBox(height: 8),
-                  if (_isSaving)
-                    const LinearProgressIndicator(
-                      color: AppColors.primary,
-                      minHeight: 3,
-                    ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -273,13 +217,9 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
                         foregroundColor: AppColors.error,
                         side: const BorderSide(color: AppColors.error),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -297,45 +237,18 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
     int maxLines = 1,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: c,
         maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w500,
-          ),
           prefixIcon: Icon(icon, color: AppColors.primary),
           filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: Color(0xFFE0E0E0),
-              width: 1,
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: Color(0xFFE0E0E0),
-              width: 1,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: AppColors.primary,
-              width: 2,
-            ),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          fillColor: AppColors.ice,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
         ),
-        validator: required
-            ? (v) => v == null || v.trim().isEmpty ? 'Champ requis' : null
-            : null,
+        validator: required ? (v) => v == null || v.trim().isEmpty ? 'Champ requis' : null : null,
       ),
     );
   }

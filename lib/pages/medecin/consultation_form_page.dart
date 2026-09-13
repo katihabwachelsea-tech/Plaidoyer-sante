@@ -1,13 +1,10 @@
-// lib/pages/medecin/consultation_form_page.dart
-//
-// Formulaire de consultation + aide IA Gemini (sans modifier ai_chat_service.dart)
-
 import 'package:flutter/material.dart';
 import '../../models/appointment.dart';
 import '../../models/patient.dart';
-import '../../services/medecin_api_service.dart';
 import '../../services/ai_chat_service.dart';
+import '../../services/medecin_api_service.dart';
 import '../../widgets/metric_card.dart';
+import 'medecin_ui.dart';
 
 class ConsultationFormPage extends StatefulWidget {
   final Appointment appointment;
@@ -59,7 +56,6 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
     try {
       final patient = _patientFromAppointment();
       AIChatService.instance.initializeChat(patient);
-
       final prompt = '''
 Motif de consultation : ${widget.appointment.motif}
 Notes du médecin : ${_notesController.text.isEmpty ? 'Aucune' : _notesController.text}
@@ -68,9 +64,7 @@ En tant qu'assistant clinique, propose 3 à 4 pistes de diagnostic différentiel
 et des examens complémentaires à envisager. Réponds en français, de façon concise 
 (professionnelle, pour un médecin). Ne pose pas de diagnostic définitif.
 ''';
-
       final response = await AIChatService.instance.sendMessage(prompt);
-
       if (mounted) {
         setState(() {
           _aiSuggestion = response.message;
@@ -89,9 +83,7 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
 
   Future<void> _submitConsultation() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isSaving = true);
-
     try {
       await _api.createConsultation(
         rendezVousId: widget.appointment.id,
@@ -99,11 +91,8 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
         ordonnance: _ordonnanceController.text.trim().isEmpty
             ? null
             : _ordonnanceController.text.trim(),
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -116,10 +105,7 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur : $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -143,15 +129,29 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.person, color: AppColors.primary),
-                title: Text(rdv.patientDisplayName),
-                subtitle: Text('Motif : ${rdv.motif}'),
-                trailing: const Chip(
-                  label: Text('Payé ✓', style: TextStyle(fontSize: 11)),
-                  backgroundColor: Color(0xFFE8F5E9),
-                ),
+            MedecinCard(
+              child: Row(
+                children: [
+                  DoctorAvatar(name: rdv.patientDisplayName, radius: 26),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(rdv.patientDisplayName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                        Text('Motif : ${rdv.motif}', style: const TextStyle(color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const Text('Payé', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w800, fontSize: 11)),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -160,11 +160,11 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
               decoration: const InputDecoration(
                 labelText: 'Diagnostic *',
                 hintText: 'Diagnostic clinique',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
               ),
               maxLines: 3,
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Diagnostic requis' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Diagnostic requis' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -172,11 +172,11 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
               decoration: const InputDecoration(
                 labelText: 'Ordonnance *',
                 hintText: 'Ex. Paracétamol 500 mg, 2 fois par jour',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
               ),
               maxLines: 4,
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Ordonnance requise' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Ordonnance requise' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -184,7 +184,8 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
               decoration: const InputDecoration(
                 labelText: 'Notes',
                 hintText: 'Observations complémentaires',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
               ),
               maxLines: 3,
             ),
@@ -192,11 +193,7 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
             OutlinedButton.icon(
               onPressed: _isAiLoading ? null : _askGeminiHelp,
               icon: _isAiLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.psychology_rounded, color: AppColors.primary),
               label: const Text('Aide IA Gemini'),
               style: OutlinedButton.styleFrom(
@@ -206,13 +203,7 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
             ),
             if (_aiSuggestion != null) ...[
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                ),
+              MedecinCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -220,15 +211,11 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
                       children: [
                         Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 20),
                         SizedBox(width: 8),
-                        Text(
-                          'Suggestions IA (aide à la décision)',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                        Text('Suggestions IA', style: TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(_aiSuggestion!, style: const TextStyle(fontSize: 13)),
-                    const SizedBox(height: 8),
                     TextButton(
                       onPressed: () {
                         if (_diagnosticController.text.isEmpty) {
@@ -242,21 +229,17 @@ et des examens complémentaires à envisager. Réponds en français, de façon c
               ),
             ],
             const SizedBox(height: 24),
-            ElevatedButton(
+            FilledButton(
               onPressed: _isSaving ? null : _submitConsultation,
-              style: ElevatedButton.styleFrom(
+              style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textOnPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _isSaving
                   ? const SizedBox(
                       height: 22,
                       width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textOnPrimary,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : const Text('Terminer la consultation'),
             ),

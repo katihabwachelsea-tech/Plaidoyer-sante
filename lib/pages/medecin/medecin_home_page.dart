@@ -1,15 +1,16 @@
-// lib/pages/medecin/medecin_home_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
-import '../../services/medecin_api_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/medecin_api_service.dart';
 import '../../widgets/metric_card.dart';
 import 'consultation_form_page.dart';
-import 'medecin_appointments_page.dart';
+import 'medecin_ui.dart';
 
 class MedecinHomePage extends StatefulWidget {
-  const MedecinHomePage({super.key});
+  final ValueChanged<int>? onOpenTab;
+
+  const MedecinHomePage({super.key, this.onOpenTab});
 
   @override
   State<MedecinHomePage> createState() => _MedecinHomePageState();
@@ -54,7 +55,6 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
         });
       }
     } catch (e) {
-      // Fallback : essayer de récupérer le nom depuis AuthService
       final user = AuthService.instance.currentUser;
       if (mounted) {
         setState(() {
@@ -71,366 +71,361 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
     return int.tryParse('$value') ?? 0;
   }
 
-  MedecinProfile _fallbackProfile() {
-    final user = AuthService.instance.currentUser;
-    return MedecinProfile(
-      id: 0,
-      userId: 0,
-      specialite: user?.specialization ?? '',
-      hopital: '',
-      nom: user?.fullName,
+  String get _shortName {
+    final parts = _doctorName.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return parts.last;
+    return _doctorName;
+  }
+
+  Future<void> _openConsultation(Appointment rdv) async {
+    final done = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ConsultationFormPage(appointment: rdv)),
     );
+    if (done == true) _loadDashboard();
   }
 
   @override
   Widget build(BuildContext context) {
-    final quickActions = [
-      _ShortcutItem(
-        icon: Icons.event_available_rounded,
-        label: 'RDV aujourd’hui',
-        subtitle: '$_todayCount confirmés',
-        color: AppColors.primary,
-        onTap: () => _openAppointments(context),
-      ),
-      _ShortcutItem(
-        icon: Icons.calendar_month_rounded,
-        label: 'Agenda',
-        subtitle: '$_creneauxCount cette semaine',
-        color: const Color(0xFF14B8A6),
-        onTap: () => _openAppointments(context),
-      ),
-      _ShortcutItem(
-        icon: Icons.medical_services_rounded,
-        label: 'Consultations',
-        subtitle: '$_consultationsCount dossiers',
-        color: const Color(0xFFF59E0B),
-        onTap: () => _openAppointments(context),
-      ),
-    ];
-
-    final summaryCards = [
-      _SummaryItem(title: 'Patients', value: '$_patientsCount', meta: 'Suivis confirmés', color: AppColors.primary),
-      _SummaryItem(title: 'À venir', value: '$_upcomingCount', meta: 'RDV confirmés', color: const Color(0xFF14B8A6)),
-      _SummaryItem(title: 'Créneaux', value: '$_creneauxCount', meta: '7 prochains jours', color: const Color(0xFF3B82F6)),
-    ];
+    final dateLabel = DateFormat("EEEE d MMMM", 'fr_FR').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: RefreshIndicator(
+        color: AppColors.primary,
         onRefresh: _loadDashboard,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            : SingleChildScrollView(
+            : CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(AppSizes.paddingL),
+                slivers: [
+                  SliverToBoxAdapter(child: _Header(name: _shortName, dateLabel: dateLabel)),
+                  SliverToBoxAdapter(
+                    child: Transform.translate(
+                      offset: const Offset(0, -28),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _KpiStrip(
+                              items: [
+                                _KpiData('Aujourd’hui', '$_todayCount', 'RDV payés', Icons.event_available_rounded, const Color(0xFF0B6EBD), () => widget.onOpenTab?.call(1)),
+                                _KpiData('À venir', '$_upcomingCount', 'Confirmés', Icons.event_repeat_rounded, const Color(0xFF0E9F6E), () => widget.onOpenTab?.call(1)),
+                                _KpiData('Créneaux', '$_creneauxCount', 'Cette semaine', Icons.schedule_rounded, const Color(0xFF3B82F6), () => widget.onOpenTab?.call(2)),
+                                _KpiData('Patients', '$_patientsCount', 'Suivis', Icons.groups_rounded, const Color(0xFFF59E0B), () => widget.onOpenTab?.call(1)),
+                                _KpiData('Dossiers', '$_consultationsCount', 'Consultés', Icons.folder_shared_rounded, const Color(0xFF8B5CF6), () => widget.onOpenTab?.call(1)),
+                              ],
+                            ),
+                            const SizedBox(height: 22),
+                            SectionLabel(
+                              title: 'Agenda du jour',
+                              action: 'Voir tout',
+                              onAction: () => widget.onOpenTab?.call(1),
+                            ),
+                            const SizedBox(height: 10),
+                            if (_today.isEmpty)
+                              const EmptyHint(
+                                icon: Icons.wb_sunny_outlined,
+                                title: 'Journée encore libre',
+                                subtitle: 'Les rendez-vous payés d’aujourd’hui apparaîtront ici, prêts à être consultés.',
+                              )
+                            else
+                              ..._today.map((rdv) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _TodayTile(
+                                      appointment: rdv,
+                                      onConsult: () => _openConsultation(rdv),
+                                    ),
+                                  )),
+                            const SizedBox(height: 18),
+                            const SectionLabel(title: 'Actions rapides'),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _QuickAction(
+                                    icon: Icons.add_alarm_rounded,
+                                    label: 'Créneau',
+                                    onTap: () => widget.onOpenTab?.call(2),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _QuickAction(
+                                    icon: Icons.medical_services_rounded,
+                                    label: 'Consultations',
+                                    onTap: () => widget.onOpenTab?.call(1),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _QuickAction(
+                                    icon: Icons.person_rounded,
+                                    label: 'Profil',
+                                    onTap: () => widget.onOpenTab?.call(3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_error != null) ...[
+                              const SizedBox(height: 16),
+                              MedecinCard(
+                                child: Text(
+                                  'API indisponible.\n$_error',
+                                  style: const TextStyle(fontSize: 12, color: AppColors.warning),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 28),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String name;
+  final String dateLabel;
+
+  const _Header({required this.name, required this.dateLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(gradient: MedecinDecor.headerGradient),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
+          child: Row(
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, Color(0xFF1565C0)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Bonjour, $_doctorName 👋',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _todayCount == 0
-                                ? 'Aucun rendez-vous confirmé aujourd’hui.'
-                                : '$_todayCount rendez-vous confirmé(s) aujourd’hui.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     Text(
-                      'Actions rapides',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      dateLabel,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.78),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: quickActions.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.82,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = quickActions[index];
-                        return _buildQuickCard(item, context);
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 6),
                     Text(
-                      'Vue d’ensemble',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      'Bonjour, $name',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: summaryCards.map((card) {
-                        return Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 10),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: card.color.withAlpha((0.2 * 255).round()), width: 1),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(12),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  card.title,
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  card.value,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: card.color,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  card.meta,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 4),
                     Text(
-                      'Aujourd’hui',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_today.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Text(
-                          'Les rendez-vous payés du jour apparaîtront ici.',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    else
-                      ..._today.map((rdv) => Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(rdv.patientDisplayName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 4),
-                                Text(rdv.motif, style: const TextStyle(color: AppColors.textSecondary)),
-                                const SizedBox(height: 10),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: FilledButton(
-                                    onPressed: () async {
-                                      final done = await Navigator.push<bool>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ConsultationFormPage(appointment: rdv),
-                                        ),
-                                      );
-                                      if (done == true) _loadDashboard();
-                                    },
-                                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                                    child: const Text('Consulter'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )),
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange),
-                        ),
-                        child: Text(
-                          'Mode hors-ligne ou API indisponible.\n$_error',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openAppointments(context),
-                        icon: const Icon(Icons.medical_services_rounded),
-                        label: const Text('Mes rendez-vous'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.textOnPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                      'Votre cabinet, prêt pour la journée.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-      ),
-    );
-  }
-
-  Widget _buildQuickCard(_ShortcutItem item, BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: item.onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [item.color.withAlpha((0.14 * 255).round()), Colors.white],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: item.color.withAlpha((0.22 * 255).round()), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: item.color.withAlpha((0.08 * 255).round()),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: item.color.withAlpha((0.14 * 255).round()),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(item.icon, color: item.color, size: 22),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                item.label,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.subtitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: item.color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              DoctorAvatar(name: name, radius: 26, background: Colors.white, foreground: AppColors.primary),
             ],
           ),
         ),
       ),
     );
   }
-
-  void _openAppointments(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const MedecinAppointmentsPage()),
-    ).then((_) => _loadDashboard());
-  }
 }
 
-class _ShortcutItem {
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ShortcutItem({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-}
-
-class _SummaryItem {
+class _KpiData {
   final String title;
   final String value;
   final String meta;
+  final IconData icon;
   final Color color;
+  final VoidCallback onTap;
 
-  const _SummaryItem({
-    required this.title,
-    required this.value,
-    required this.meta,
-    required this.color,
-  });
+  const _KpiData(this.title, this.value, this.meta, this.icon, this.color, this.onTap);
+}
+
+class _KpiStrip extends StatelessWidget {
+  final List<_KpiData> items;
+  const _KpiStrip({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 118,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return InkWell(
+            onTap: item.onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 148,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: MedecinDecor.cardShadow,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: item.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(item.icon, size: 18, color: item.color),
+                  ),
+                  const Spacer(),
+                  Text(
+                    item.value,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: item.color,
+                    ),
+                  ),
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  Text(
+                    item.meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TodayTile extends StatelessWidget {
+  final Appointment appointment;
+  final VoidCallback onConsult;
+
+  const _TodayTile({required this.appointment, required this.onConsult});
+
+  @override
+  Widget build(BuildContext context) {
+    final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
+    return MedecinCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.ice,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  time,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const Text('RDV', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          DoctorAvatar(name: appointment.patientDisplayName),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  appointment.patientDisplayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  appointment.motif,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onConsult,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: const Text('Voir'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickAction({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return MedecinCard(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primary),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }

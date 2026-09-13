@@ -184,6 +184,16 @@ class MedecinApiService {
     return Map<String, dynamic>.from(data['data'] as Map);
   }
 
+  Future<void> deleteCreneau(int id) async {
+    final response = await http
+        .delete(
+          Uri.parse('$baseUrl/medecin/creneaux/$id'),
+          headers: await _headers(),
+        )
+        .timeout(_timeout);
+    _checkStatus(response);
+  }
+
   /// POST /api/medecin/appointments/{id}/cancel
   Future<void> cancelAppointment(int id) async {
     final response = await http
