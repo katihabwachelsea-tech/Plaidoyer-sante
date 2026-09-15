@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
 import '../config/app_config.dart';
 import 'mock_demo_data.dart';
+import 'api_logger.dart';
 
 class AuthService {
   static const String baseUrl = AppConfig.baseUrl;
@@ -24,21 +24,19 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    final url = '$baseUrl/login';
     try {
-      debugPrint('AuthService -> POST $baseUrl/login');
+      ApiLogger.request(method: 'POST', url: url, body: {'email': email});
       final response = await http.post(
-        Uri.parse('$baseUrl/login'),
+        Uri.parse(url),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
-      debugPrint('AuthService <- ${response.statusCode} ${response.body}');
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       final data = json.decode(response.body);
 
       if (response.statusCode == 200 && data['status'] == true) {
@@ -67,6 +65,7 @@ class AuthService {
         };
       }
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       return {
         'success': false,
         'message': 'Erreur de connexion au serveur : $e',
@@ -83,9 +82,11 @@ class AuthService {
     required String role,
     String? profileImageUrl,
   }) async {
+    final url = '$baseUrl/register';
     try {
+      ApiLogger.request(method: 'POST', url: url, body: {'email': email, 'nom': fullName, 'role': role});
       final response = await http.post(
-        Uri.parse('$baseUrl/register'),
+        Uri.parse(url),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -101,6 +102,7 @@ class AuthService {
         }),
       );
 
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       final data = json.decode(response.body);
       final isSuccess = response.statusCode == 200 || response.statusCode == 201;
 
@@ -120,6 +122,7 @@ class AuthService {
         'data': data,
       };
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       return {
         'success': false,
         'message': 'Erreur lors de l\'inscription : $e',
@@ -149,7 +152,7 @@ class AuthService {
         };
       }
 
-      final endpoint = role == 'medecin' 
+      final endpoint = role == 'medecin'
           ? '$baseUrl/medecin/complete-profile'
           : '$baseUrl/patient/complete-profile';
 
@@ -168,6 +171,7 @@ class AuthService {
               'antecedents': antecedents,
             };
 
+      ApiLogger.request(method: 'POST', url: endpoint, body: body);
       final response = await http.post(
         Uri.parse(endpoint),
         headers: {
@@ -178,6 +182,7 @@ class AuthService {
         body: jsonEncode(body),
       );
 
+      ApiLogger.response(url: endpoint, statusCode: response.statusCode, body: response.body);
       final data = json.decode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -193,6 +198,7 @@ class AuthService {
         };
       }
     } catch (e) {
+      ApiLogger.error(url: '$baseUrl/complete-profile', error: e);
       return {
         'success': false,
         'message': 'Erreur : $e',

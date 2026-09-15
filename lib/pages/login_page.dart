@@ -447,7 +447,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
- /* Widget _buildTrustBadges() {
+  Widget _buildTrustBadges() {
     final badges = [
       (Icons.verified_user_rounded, 'Sécurisé'),
       (Icons.local_hospital_rounded, 'Certifié'),
@@ -475,5 +475,5 @@ class _LoginPageState extends State<LoginPage>
         );
       }).toList(),
     );
-  }*/
+  }
 }

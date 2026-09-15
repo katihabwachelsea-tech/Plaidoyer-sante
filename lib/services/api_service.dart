@@ -1,12 +1,12 @@
 // lib/services/api_service.dart
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/patient.dart';
 import '../config/app_config.dart';
+import 'api_logger.dart';
 
 class ApiService {
   static const String baseUrl = AppConfig.baseUrl;
@@ -41,18 +41,16 @@ class ApiService {
     if (!await _hasInternetConnection()) {
       throw Exception('Pas de connexion internet');
     }
-
+    final url = '$baseUrl$endpoint';
     try {
-      debugPrint('ApiService -> GET $baseUrl$endpoint');
+      ApiLogger.request(method: 'GET', url: url, headers: _authHeaders);
       final response = await http
-          .get(
-            Uri.parse('$baseUrl$endpoint'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse(url), headers: _authHeaders)
           .timeout(timeout);
-
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       return _handleResponse(response);
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       throw Exception('Erreur de connexion: $e');
     }
   }
@@ -65,19 +63,16 @@ class ApiService {
     if (!await _hasInternetConnection()) {
       throw Exception('Pas de connexion internet');
     }
-
+    final url = '$baseUrl$endpoint';
     try {
-      debugPrint('ApiService -> POST $baseUrl$endpoint');
+      ApiLogger.request(method: 'POST', url: url, headers: _authHeaders, body: data);
       final response = await http
-          .post(
-            Uri.parse('$baseUrl$endpoint'),
-            headers: _authHeaders,
-            body: jsonEncode(data),
-          )
+          .post(Uri.parse(url), headers: _authHeaders, body: jsonEncode(data))
           .timeout(timeout);
-
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       return _handleResponse(response);
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       throw Exception('Erreur de connexion: $e');
     }
   }
@@ -90,19 +85,16 @@ class ApiService {
     if (!await _hasInternetConnection()) {
       throw Exception('Pas de connexion internet');
     }
-
+    final url = '$baseUrl$endpoint';
     try {
-      debugPrint('ApiService -> PUT $baseUrl$endpoint');
+      ApiLogger.request(method: 'PUT', url: url, headers: _authHeaders, body: data);
       final response = await http
-          .put(
-            Uri.parse('$baseUrl$endpoint'),
-            headers: _authHeaders,
-            body: jsonEncode(data),
-          )
+          .put(Uri.parse(url), headers: _authHeaders, body: jsonEncode(data))
           .timeout(timeout);
-
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       return _handleResponse(response);
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       throw Exception('Erreur de connexion: $e');
     }
   }
@@ -112,18 +104,16 @@ class ApiService {
     if (!await _hasInternetConnection()) {
       throw Exception('Pas de connexion internet');
     }
-
+    final url = '$baseUrl$endpoint';
     try {
-      debugPrint('ApiService -> DELETE $baseUrl$endpoint');
+      ApiLogger.request(method: 'DELETE', url: url, headers: _authHeaders);
       final response = await http
-          .delete(
-            Uri.parse('$baseUrl$endpoint'),
-            headers: _authHeaders,
-          )
+          .delete(Uri.parse(url), headers: _authHeaders)
           .timeout(timeout);
-
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       return _handleResponse(response);
     } catch (e) {
+      ApiLogger.error(url: url, error: e);
       throw Exception('Erreur de connexion: $e');
     }
   }
@@ -132,8 +122,6 @@ class ApiService {
   static Map<String, dynamic> _handleResponse(http.Response response) {
     final statusCode = response.statusCode;
     final body = response.body;
-
-    debugPrint('ApiService <- [$statusCode] $body');
 
     if (statusCode >= 200 && statusCode < 300) {
       // Succès

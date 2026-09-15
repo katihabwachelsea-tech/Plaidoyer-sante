@@ -5,13 +5,30 @@ import '../services/auth_service.dart';
 import '../widgets/metric_card.dart';
 import 'patient/doctor_booking_page.dart';
 
+// Photos Unsplash de médecins africains (libres de droits)
+// Source : unsplash.com — photographes : Cedric Fauntleroy, Klaus Nielsen, etc.
+const List<String> _fallbackPhotos = [
+  'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=200&q=80', // médecin homme noir blouse blanche
+  'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&q=80', // médecin femme noire stéthoscope
+  'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&q=80', // médecin homme noir souriant
+  'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=200&q=80', // médecin femme noire blouse
+  'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=200&q=80', // médecin homme noir bureau
+  'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&q=80', // médecin femme noire
+];
+
+String _photoForDoctor(dynamic doctor, int index) {
+  final url = doctor['user']?['photo_url'] ??
+      doctor['user']?['profileImageUrl'] ??
+      doctor['photo_url'] ??
+      doctor['profileImageUrl'];
+  if (url != null && (url as String).startsWith('http')) return url;
+  return _fallbackPhotos[index % _fallbackPhotos.length];
+}
+
 class DoctorsListPage extends StatefulWidget {
   final String? initialSpecialty;
 
-  const DoctorsListPage({
-    super.key,
-    this.initialSpecialty,
-  });
+  const DoctorsListPage({super.key, this.initialSpecialty});
 
   @override
   State<DoctorsListPage> createState() => _DoctorsListPageState();
@@ -39,82 +56,58 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      // Charger les médecins
       final doctorsResult = await AuthService.instance.fetchDoctors();
       if (doctorsResult['success']) {
         _allDoctors = doctorsResult['doctors'] ?? [];
         _applyFilters();
       }
-
-      // Charger les spécialités
       final specialtiesResult = await AuthService.instance.fetchSpecialties();
       if (specialtiesResult['success']) {
-        setState(() {
-          _specialties = specialtiesResult['specialties'] ?? [];
-        });
+        setState(() => _specialties = specialtiesResult['specialties'] ?? []);
       }
     } catch (e) {
       debugPrint('Erreur: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   void _applyFilters() {
     List<dynamic> filtered = _allDoctors;
-
-    // Filtre par spécialité
     if (_selectedSpecialty != null && _selectedSpecialty!.isNotEmpty) {
       filtered = filtered.where((doc) {
         final specialite = doc['specialite']?.toString().toLowerCase() ?? '';
         return specialite.contains(_selectedSpecialty!.toLowerCase());
       }).toList();
     }
-
-    // Filtre par recherche
     if (_searchController.text.isNotEmpty) {
       filtered = filtered.where((doc) {
-        final name = (doc['user']?['nom'] ?? doc['nom'] ?? '')
-            .toString()
-            .toLowerCase();
-        final specialite =
-            (doc['specialite'] ?? '').toString().toLowerCase();
+        final name =
+            (doc['user']?['nom'] ?? doc['nom'] ?? '').toString().toLowerCase();
+        final specialite = (doc['specialite'] ?? '').toString().toLowerCase();
         final hopital = (doc['hopital'] ?? '').toString().toLowerCase();
-        final searchTerm = _searchController.text.toLowerCase();
-        return name.contains(searchTerm) ||
-            specialite.contains(searchTerm) ||
-            hopital.contains(searchTerm);
+        final q = _searchController.text.toLowerCase();
+        return name.contains(q) ||
+            specialite.contains(q) ||
+            hopital.contains(q);
       }).toList();
     }
-
-    setState(() {
-      _doctors = filtered;
-    });
+    setState(() => _doctors = filtered);
   }
 
   void _onSpecialtyChanged(String? specialty) {
-    setState(() {
-      _selectedSpecialty =
-          specialty == _selectedSpecialty ? null : specialty;
-    });
-    _applyFilters();
-  }
-
-  void _onSearchChanged(String query) {
+    setState(() =>
+        _selectedSpecialty = specialty == _selectedSpecialty ? null : specialty);
     _applyFilters();
   }
 
   String _specialtyLabel(dynamic specialty) {
     if (specialty is Map) {
-      final value = specialty['name'] ?? specialty['specialite'] ?? specialty['label'];
-      return value?.toString() ?? 'Spécialité';
+      return (specialty['name'] ?? specialty['specialite'] ?? specialty['label'])
+              ?.toString() ??
+          'Spécialité';
     }
     return specialty?.toString() ?? 'Spécialité';
   }
@@ -123,224 +116,345 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Trouver un médecin'),
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Filtres et Recherche
-            Padding(
-              padding: const EdgeInsets.all(AppSizes.paddingL),
+      body: CustomScrollView(
+        slivers: [
+          // ── AppBar style Doctolib ──────────────────────────────────
+          SliverAppBar(
+            expandedHeight: 120,
+            pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [AppColors.primaryDark, AppColors.primary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'Trouver un médecin',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_doctors.length} médecin${_doctors.length > 1 ? 's' : ''} disponible${_doctors.length > 1 ? 's' : ''}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Barre de recherche + filtres ───────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Barre de recherche
+                  // Recherche
                   TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Nom, spécialité ou hôpital',
-                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Nom, spécialité ou hôpital…',
+                      prefixIcon:
+                          const Icon(Icons.search, color: AppColors.primary),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear),
                               onPressed: () {
                                 _searchController.clear();
-                                _onSearchChanged('');
+                                _applyFilters();
                               },
                             )
                           : null,
+                      filled: true,
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
                       ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                     ),
-                    onChanged: _onSearchChanged,
+                    onChanged: (_) => _applyFilters(),
                   ),
-                  const SizedBox(height: AppSizes.paddingL),
 
-                  // Filtre par spécialité
+                  // Chips spécialités
                   if (_specialties.isNotEmpty) ...[
-                    Text(
-                      'Filtrer par spécialité',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: AppSizes.paddingM),
+                    const SizedBox(height: 12),
                     SizedBox(
-                      height: 45,
-                      child: ListView.builder(
+                      height: 36,
+                      child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _specialties.length,
-                        itemBuilder: (context, index) {
-                          final specialty = _specialties[index];
-                          final name = _specialtyLabel(specialty);
-                          final isSelected = _selectedSpecialty == name;
-
-                          return Padding(
-                            padding:
-                                const EdgeInsets.only(right: AppSizes.paddingM),
-                            child: FilterChip(
-                              selected: isSelected,
-                              label: Text(name),
-                              onSelected: (_) => _onSpecialtyChanged(name),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: 8),
+                        itemBuilder: (context, i) {
+                          final name = _specialtyLabel(_specialties[i]);
+                          final selected = _selectedSpecialty == name;
+                          return GestureDetector(
+                            onTap: () => _onSpecialtyChanged(name),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppColors.primary
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: selected
+                                      ? AppColors.primary
+                                      : AppColors.border,
+                                ),
+                              ),
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
                             ),
                           );
                         },
                       ),
                     ),
                   ],
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
+          ),
 
-            // Liste des médecins
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _doctors.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_off,
-                                size: 64,
-                                color:
-                                    AppColors.textSecondary.withAlpha(128),
-                              ),
-                              const SizedBox(height: AppSizes.paddingL),
-                              Text(
-                                'Aucun médecin trouvé',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge,
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(AppSizes.paddingL),
-                          itemCount: _doctors.length,
-                          itemBuilder: (context, index) {
-                            final doctor = _doctors[index];
-                            return _buildDoctorListItem(doctor);
-                          },
-                        ),
+          // ── Liste des médecins ─────────────────────────────────────
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary)),
+            )
+          else if (_doctors.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.person_search_rounded,
+                        size: 72,
+                        color: AppColors.textSecondary.withOpacity(0.4)),
+                    const SizedBox(height: 16),
+                    const Text('Aucun médecin trouvé',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Text('Modifiez votre recherche ou filtre',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary.withOpacity(0.7))),
+                  ],
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _DoctorCard(doctor: _doctors[index], index: index),
+                  childCount: _doctors.length,
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildDoctorListItem(dynamic doctor) {
+// ── Carte médecin style Doctolib ────────────────────────────────────────────
+class _DoctorCard extends StatelessWidget {
+  final dynamic doctor;
+  final int index;
+
+  const _DoctorCard({required this.doctor, required this.index});
+
+  @override
+  Widget build(BuildContext context) {
     final name = doctor['user']?['nom'] ?? doctor['nom'] ?? 'Dr. Inconnu';
-    final specialite = doctor['specialite'] ?? 'Médecin';
-    final hopital = doctor['hopital'] ?? 'Clinique';
-    final disponibilite = doctor['disponibilite'] ?? 'Horaires non spécifiés';
-    final imageUrl = doctor['user']?['profileImageUrl'] ??
-        doctor['profileImageUrl'];
+    final specialite = doctor['specialite'] ?? 'Médecin généraliste';
+    final hopital = doctor['hopital'] ?? '';
+    final disponibilite = doctor['disponibilite'] ?? '';
+    final photoUrl = _photoForDoctor(doctor, index);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSizes.paddingM),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingM),
-        child: Column(
-          children: [
-            Row(
+    // Note : on garde "Dr." uniquement si le nom ne commence pas déjà par Dr
+    final displayName =
+        name.toString().startsWith('Dr') ? name : 'Dr. $name';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ── Bandeau photo + infos ───────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar du médecin
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withAlpha((0.1 * 255).round()),
-                    image: imageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(imageUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
+                // Photo médecin
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    photoUrl,
+                    width: 86,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 86,
+                      height: 96,
+                      color: AppColors.primary.withOpacity(0.08),
+                      child: const Icon(Icons.person_rounded,
+                          size: 44, color: AppColors.primary),
+                    ),
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return Container(
+                        width: 86,
+                        height: 96,
+                        color: AppColors.surfaceVariant,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  child: imageUrl == null
-                      ? const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: AppColors.primary,
-                        )
-                      : null,
                 ),
+                const SizedBox(width: 14),
 
-                const SizedBox(width: AppSizes.paddingM),
-
-                // Infos du médecin
+                // Infos texte
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        name,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        displayName.toString(),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        specialite,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w500,
-                            ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          specialite.toString(),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(height: 4),
+                      if (hopital.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded,
+                                size: 13, color: AppColors.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                hopital.toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (disponibilite.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded,
+                                size: 13, color: AppColors.accent),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                disponibilite.toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.accent),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      // Badge "Prend en charge" style Doctolib
                       Row(
                         children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
+                          const Icon(Icons.verified_rounded,
+                              size: 13, color: AppColors.success),
                           const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              hopital,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.schedule_outlined,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              disponibilite,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                            ),
+                          const Text(
+                            'Accepte de nouveaux patients',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.success),
                           ),
                         ],
                       ),
@@ -349,27 +463,40 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                 ),
               ],
             ),
+          ),
 
-            const SizedBox(height: AppSizes.paddingM),
-
-            // Bouton RDV
-            SizedBox(
+          // ── Séparateur + bouton RDV ─────────────────────────
+          Divider(height: 1, color: AppColors.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            child: SizedBox(
               width: double.infinity,
+              height: 44,
               child: ElevatedButton.icon(
                 onPressed: () {
                   final map = Map<String, dynamic>.from(doctor as Map);
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => DoctorBookingPage(doctor: map),
-                    ),
+                        builder: (_) => DoctorBookingPage(doctor: map)),
                   );
                 },
-                icon: const Icon(Icons.calendar_today),
-                label: const Text('Prendre RDV'),
+                icon: const Icon(Icons.calendar_month_rounded, size: 17),
+                label: const Text(
+                  'Prendre rendez-vous',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

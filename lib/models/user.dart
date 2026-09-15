@@ -92,7 +92,8 @@ class User {
       telephone: map['telephone'] as String?,
       role: map['role'] as String,
       specialization: map['specialization'] as String?,
-      profileImageUrl: map['profileImageUrl'] as String?,
+      profileImageUrl: map['profileImageUrl'] as String?
+          ?? map['photo_url'] as String?,
       createdAt: DateTime.tryParse(createdAtValue) ?? DateTime.now(),
       lastLogin: map['lastLogin'] != null
           ? DateTime.parse(map['lastLogin'] as String)

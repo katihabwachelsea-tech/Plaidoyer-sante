@@ -267,7 +267,7 @@ class _KpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 118,
+      height: 130,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
@@ -278,8 +278,8 @@ class _KpiStrip extends StatelessWidget {
             onTap: item.onTap,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              width: 148,
-              padding: const EdgeInsets.all(14),
+              width: 140,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -287,6 +287,7 @@ class _KpiStrip extends StatelessWidget {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 32,
@@ -297,15 +298,17 @@ class _KpiStrip extends StatelessWidget {
                     ),
                     child: Icon(item.icon, size: 18, color: item.color),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 8),
                   Text(
                     item.value,
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: item.color,
+                      height: 1.1,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     item.title,
                     maxLines: 1,

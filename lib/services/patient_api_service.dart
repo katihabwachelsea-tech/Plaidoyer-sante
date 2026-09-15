@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_config.dart';
+import 'api_logger.dart';
 
 class PatientApiService {
   static const String baseUrl = AppConfig.baseUrl;
@@ -25,7 +26,7 @@ class PatientApiService {
     return jsonDecode(response.body);
   }
 
-  void _checkStatus(http.Response response) {
+  void _checkStatus(http.Response response, String url) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     final body = _decode(response);
     final msg = body is Map ? (body['message'] ?? body.toString()) : response.body;
@@ -33,10 +34,14 @@ class PatientApiService {
   }
 
   Future<List<Map<String, dynamic>>> getAppointments() async {
+    final url = '$baseUrl/patient/appointments';
+    final headers = await _headers();
+    ApiLogger.request(method: 'GET', url: url, headers: headers);
     final response = await http
-        .get(Uri.parse('$baseUrl/patient/appointments'), headers: await _headers())
+        .get(Uri.parse(url), headers: headers)
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
     final data = _decode(response);
     return (data['data'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -44,13 +49,14 @@ class PatientApiService {
   }
 
   Future<void> cancelAppointment(int id) async {
+    final url = '$baseUrl/patient/appointments/$id/cancel';
+    final headers = await _headers();
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
     final response = await http
-        .post(
-          Uri.parse('$baseUrl/patient/appointments/$id/cancel'),
-          headers: await _headers(),
-        )
+        .post(Uri.parse(url), headers: headers)
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
   }
 
   Future<Map<String, dynamic>> payAppointment({
@@ -58,47 +64,53 @@ class PatientApiService {
     required String methode,
     required String telephone,
   }) async {
+    final url = '$baseUrl/patient/appointments/$id/pay';
+    final headers = await _headers();
+    final body = {'methode_paiement': methode, 'telephone': telephone};
+    ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
     final response = await http
-        .post(
-          Uri.parse('$baseUrl/patient/appointments/$id/pay'),
-          headers: await _headers(),
-          body: jsonEncode({
-            'methode_paiement': methode,
-            'telephone': telephone,
-          }),
-        )
+        .post(Uri.parse(url), headers: headers, body: jsonEncode(body))
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
     return Map<String, dynamic>.from(_decode(response) as Map);
   }
 
   Future<Map<String, dynamic>> getProfile() async {
+    final url = '$baseUrl/patient/profile';
+    final headers = await _headers();
+    ApiLogger.request(method: 'GET', url: url, headers: headers);
     final response = await http
-        .get(Uri.parse('$baseUrl/patient/profile'), headers: await _headers())
+        .get(Uri.parse(url), headers: headers)
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
     final data = _decode(response);
     return Map<String, dynamic>.from(data['data'] as Map);
   }
 
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) async {
+    final url = '$baseUrl/patient/profile';
+    final headers = await _headers();
+    ApiLogger.request(method: 'PUT', url: url, headers: headers, body: body);
     final response = await http
-        .put(
-          Uri.parse('$baseUrl/patient/profile'),
-          headers: await _headers(),
-          body: jsonEncode(body),
-        )
+        .put(Uri.parse(url), headers: headers, body: jsonEncode(body))
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
     final data = _decode(response);
     return Map<String, dynamic>.from(data['data'] as Map);
   }
 
   Future<List<Map<String, dynamic>>> getMedicalRecord() async {
+    final url = '$baseUrl/patient/medical-record';
+    final headers = await _headers();
+    ApiLogger.request(method: 'GET', url: url, headers: headers);
     final response = await http
-        .get(Uri.parse('$baseUrl/patient/medical-record'), headers: await _headers())
+        .get(Uri.parse(url), headers: headers)
         .timeout(_timeout);
-    _checkStatus(response);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
     final data = _decode(response);
     return (data['data'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
