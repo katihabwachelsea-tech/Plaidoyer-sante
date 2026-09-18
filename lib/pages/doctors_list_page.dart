@@ -2,28 +2,9 @@
 
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../utils/doctor_photo.dart';
 import '../widgets/metric_card.dart';
 import 'patient/doctor_booking_page.dart';
-
-// Photos Unsplash de médecins africains (libres de droits)
-// Source : unsplash.com — photographes : Cedric Fauntleroy, Klaus Nielsen, etc.
-const List<String> _fallbackPhotos = [
-  'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=200&q=80', // médecin homme noir blouse blanche
-  'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&q=80', // médecin femme noire stéthoscope
-  'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&q=80', // médecin homme noir souriant
-  'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=200&q=80', // médecin femme noire blouse
-  'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=200&q=80', // médecin homme noir bureau
-  'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&q=80', // médecin femme noire
-];
-
-String _photoForDoctor(dynamic doctor, int index) {
-  final url = doctor['user']?['photo_url'] ??
-      doctor['user']?['profileImageUrl'] ??
-      doctor['photo_url'] ??
-      doctor['profileImageUrl'];
-  if (url != null && (url as String).startsWith('http')) return url;
-  return _fallbackPhotos[index % _fallbackPhotos.length];
-}
 
 class DoctorsListPage extends StatefulWidget {
   final String? initialSpecialty;
@@ -310,7 +291,7 @@ class _DoctorCard extends StatelessWidget {
     final specialite = doctor['specialite'] ?? 'Médecin généraliste';
     final hopital = doctor['hopital'] ?? '';
     final disponibilite = doctor['disponibilite'] ?? '';
-    final photoUrl = _photoForDoctor(doctor, index);
+    final photoUrl = doctorPhotoUrl(doctor, index: index);
 
     // Note : on garde "Dr." uniquement si le nom ne commence pas déjà par Dr
     final displayName =

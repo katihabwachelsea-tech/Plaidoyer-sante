@@ -104,12 +104,38 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
         title: const Text('Mon profil'),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Actualiser',
+            onPressed: _load,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
-              ? Center(child: Text(_error!))
-              : ListView(
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Réessayer'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  color: AppColors.primary,
+                  child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     Container(
@@ -178,6 +204,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
                       child: const Text('Se déconnecter'),
                     ),
                   ],
+                ),
                 ),
     );
   }

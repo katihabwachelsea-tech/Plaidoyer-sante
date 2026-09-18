@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
 import '../../services/medecin_api_service.dart';
+import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
 import 'medecin_ui.dart';
@@ -131,7 +132,10 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Form(
+      body: RefreshIndicator(
+        onRefresh: _loadProfile,
+        color: AppColors.primary,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: EdgeInsets.zero,
@@ -141,14 +145,30 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                   child: Column(
                     children: [
+                      // Bouton refresh en haut à droite
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          icon: const Icon(Icons.refresh_rounded,
+                              color: Colors.white70),
+                          tooltip: 'Actualiser',
+                          onPressed: _loadProfile,
+                        ),
+                      ),
                       DoctorAvatar(
                         name: _nomController.text.isEmpty ? 'Dr' : _nomController.text,
                         radius: 40,
                         background: Colors.white,
                         foreground: AppColors.primary,
+                        imageUrl: doctorPhotoUrl({
+                          'nom': _nomController.text.isEmpty
+                              ? 'Dr'
+                              : _nomController.text,
+                          'photo_url': AuthService.instance.currentUser?.profileImageUrl,
+                        }),
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -225,6 +245,7 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

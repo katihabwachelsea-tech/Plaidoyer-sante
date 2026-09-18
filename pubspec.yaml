@@ -34,27 +34,21 @@ dependencies:
   path: ^1.8.3  
   sqflite_common_ffi: ^2.3.0  # Or the latest version
   #google_generative_ai: ^0.2.2 # Vérifiez cette version
-  http: ^1.1.0 # #Sert à faire des requêtes HTTP vers des API (GET, POST, PUT, DELETE).
-  flutter_secure_storage: ^8.0.0 # Pour stocker les tokens et données sensibles en toute sécurité
-  connectivity_plus: ^5.0.0  # Pour vérifier la connexion internet
-  async: ^2.11.0 # Pour la fonction Debouncer
+  http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  connectivity_plus: ^6.0.0
+  async: ^2.11.0
   debounce_throttle: ^2.0.0
-  # 👈 AJOUTEZ CECI : Package pour l'internationalisation et le formatage des dates
-  intl: ^0.18.1 #flutter pub add debounce_throttle: ^1.0.3 # Pour la fonction Debouncer"
-  google_generative_ai: ^0.4.7 # Pour intégrer l'API Generative AI de Google
-  # Base de Firebase (obligatoire)
-  firebase_core: ^2.24.2
-  
-  # Firestore (recommandé pour la structure documentaire)
-  cloud_firestore: ^4.13.3 
-  
-  # Optionnel : Authentification (si vous voulez sécuriser l'accès)
-  firebase_auth: ^4.15.3
-  url_launcher: ^6.2.1 #sert à lancer (ouvrir) des URL ou des schémas d'URL (URI) externes à votre application Flutter.
-  crypto: ^3.0.3 # Pour le hachage des mots de passe
-  image_picker: ^0.8.7+5 # Pour sélectionner des images depuis la galerie ou la caméra
-  path_provider: ^2.0.15 # Pour Pour sauvegarder l'image localement
-  shared_preferences: ^2.2.2 # Pour sauvegarder les paramètres 
+  intl: ^0.19.0
+  google_generative_ai: ^0.4.7
+  firebase_core: ^3.0.0
+  cloud_firestore: ^5.0.0
+  firebase_auth: ^5.0.0
+  url_launcher: ^6.2.1
+  crypto: ^3.0.3
+  image_picker: ^1.0.0
+  path_provider: ^2.1.0
+  shared_preferences: ^2.3.0
 
 
   # The following adds the Cupertino Icons font to your application.

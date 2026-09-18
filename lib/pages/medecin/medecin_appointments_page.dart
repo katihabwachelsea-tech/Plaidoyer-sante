@@ -19,6 +19,8 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   bool _isLoading = true;
   String? _error;
   String _filter = 'today';
+  bool _showAll = false;
+  static const int _previewCount = 5;
 
   @override
   void initState() {
@@ -182,9 +184,39 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
                 sliver: SliverList.builder(
-                  itemCount: _visible.length,
+                  itemCount: _showAll
+                      ? _visible.length + (_visible.length > _previewCount ? 1 : 0)
+                      : _visible.take(_previewCount).length +
+                          (_visible.length > _previewCount ? 1 : 0),
                   itemBuilder: (context, index) {
-                    final rdv = _visible[index];
+                    final list = _visible;
+                    final visibleList =
+                        _showAll ? list : list.take(_previewCount).toList();
+
+                    // Bouton voir plus / voir moins
+                    if (index == visibleList.length && list.length > _previewCount) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 12),
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(() => _showAll = !_showAll),
+                          icon: Icon(_showAll
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded),
+                          label: Text(_showAll
+                              ? 'Voir moins'
+                              : 'Voir plus (${list.length - _previewCount} autres)'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (index >= visibleList.length) return const SizedBox.shrink();
+                    final rdv = visibleList[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _AppointmentCard(

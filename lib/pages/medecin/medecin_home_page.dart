@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
 import '../../services/medecin_api_service.dart';
+import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import 'consultation_form_page.dart';
 import 'medecin_ui.dart';
@@ -240,7 +241,16 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
-              DoctorAvatar(name: name, radius: 26, background: Colors.white, foreground: AppColors.primary),
+              DoctorAvatar(
+                name: name,
+                radius: 26,
+                background: Colors.white,
+                foreground: AppColors.primary,
+                imageUrl: doctorPhotoUrl({
+                  'nom': name,
+                  'photo_url': AuthService.instance.currentUser?.profileImageUrl,
+                }),
+              ),
             ],
           ),
         ),

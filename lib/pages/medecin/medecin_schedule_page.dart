@@ -18,6 +18,8 @@ class _MedecinSchedulePageState extends State<MedecinSchedulePage> {
   bool _isLoading = true;
   late DateTime _selectedDay;
   late final List<DateTime> _days;
+  bool _showAllSlots = false;
+  static const int _slotsPreviewCount = 5;
 
   @override
   void initState() {
@@ -301,9 +303,41 @@ class _MedecinSchedulePageState extends State<MedecinSchedulePage> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 sliver: SliverList.builder(
-                  itemCount: daySlots.length,
+                  itemCount: (_showAllSlots
+                          ? daySlots
+                          : daySlots.take(_slotsPreviewCount).toList())
+                      .length +
+                      (daySlots.length > _slotsPreviewCount ? 1 : 0),
                   itemBuilder: (context, index) {
-                    final c = daySlots[index];
+                    final visible = _showAllSlots
+                        ? daySlots
+                        : daySlots.take(_slotsPreviewCount).toList();
+
+                    // Bouton voir plus / voir moins
+                    if (index == visible.length && daySlots.length > _slotsPreviewCount) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              setState(() => _showAllSlots = !_showAllSlots),
+                          icon: Icon(_showAllSlots
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded),
+                          label: Text(_showAllSlots
+                              ? 'Voir moins'
+                              : 'Voir plus (${daySlots.length - _slotsPreviewCount} autres)'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (index >= visible.length) return const SizedBox.shrink();
+                    final c = visible[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: MedecinCard(

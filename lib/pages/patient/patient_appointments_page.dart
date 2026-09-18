@@ -17,6 +17,8 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
   List<Map<String, dynamic>> _appointments = [];
   bool _isLoading = true;
   String? _error;
+  bool _showAll = false;
+  static const int _previewCount = 5;
 
   @override
   void initState() {
@@ -90,6 +92,13 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
         title: const Text('Mes rendez-vous'),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Actualiser',
+            onPressed: _load,
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
@@ -131,12 +140,38 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
     }
 
     final fmt = DateFormat('EEE d MMM yyyy • HH:mm', 'fr_FR');
+    final visible = _showAll
+        ? _appointments
+        : _appointments.take(_previewCount).toList();
+    final hasMore = _appointments.length > _previewCount;
+
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: _appointments.length,
+      itemCount: visible.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        final appt = _appointments[index];
+        // Bouton voir plus / voir moins en bas de liste
+        if (index == visible.length) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 16),
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _showAll = !_showAll),
+              icon: Icon(_showAll
+                  ? Icons.expand_less_rounded
+                  : Icons.expand_more_rounded),
+              label: Text(_showAll
+                  ? 'Voir moins'
+                  : 'Voir plus (${_appointments.length - _previewCount} autres)'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          );
+        }
+
+        final appt = visible[index];
         final medecin = appt['medecin'] as Map<String, dynamic>?;
         final doctor = medecin?['user']?['nom'] ?? 'Médecin';
         final service = (appt['service'] as Map?)?['nom_service'] ?? 'Consultation';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import 'doctor_booking_page.dart';
 
@@ -11,7 +12,7 @@ class DoctorDetailPage extends StatelessWidget {
   String get specialite => doctor['specialite'] ?? 'Médecin';
   String get hopital => doctor['hopital'] ?? 'Clinique';
   String get disponibilite => doctor['disponibilite'] ?? 'Horaires non spécifiés';
-  String get imageUrl => doctor['user']?['profileImageUrl'] ?? doctor['profileImageUrl'] ?? '';
+  String get imageUrl => doctorPhotoUrl(doctor);
 
   @override
   Widget build(BuildContext context) {

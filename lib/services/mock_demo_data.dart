@@ -1,5 +1,6 @@
 import '../models/country_stats.dart';
 import '../models/patient.dart';
+import '../utils/doctor_photo.dart';
 
 class MockDemoDataService {
   MockDemoDataService._internal();
@@ -71,12 +72,12 @@ class MockDemoDataService {
       'specialite': 'Cardiologie',
       'hopital': 'Clinique de l’Espérance',
       'disponibilite': 'Lundi - Vendredi, 08:00 - 16:00',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kFemaleDoctorPhotos[0],
+      'profileImageUrl': kFemaleDoctorPhotos[0],
       'user': {
         'nom': 'Dr. Aline Ndayisenga',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kFemaleDoctorPhotos[0],
+        'profileImageUrl': kFemaleDoctorPhotos[0],
       },
     },
     {
@@ -85,12 +86,12 @@ class MockDemoDataService {
       'specialite': 'Endocrinologie',
       'hopital': 'Centre Médical Saint-Luc',
       'disponibilite': 'Lundi - Samedi, 09:00 - 17:00',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kMaleDoctorPhotos[0],
+      'profileImageUrl': kMaleDoctorPhotos[0],
       'user': {
         'nom': 'Dr. Jean Mugenzi',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kMaleDoctorPhotos[0],
+        'profileImageUrl': kMaleDoctorPhotos[0],
       },
     },
     {
@@ -99,12 +100,12 @@ class MockDemoDataService {
       'specialite': 'Oncologie',
       'hopital': 'Hôpital de Kigali',
       'disponibilite': 'Mardi - Dimanche, 09:30 - 15:30',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kFemaleDoctorPhotos[3],
+      'profileImageUrl': kFemaleDoctorPhotos[3],
       'user': {
         'nom': 'Dr. Mireille Uwimana',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kFemaleDoctorPhotos[3],
+        'profileImageUrl': kFemaleDoctorPhotos[3],
       },
     },
     {
@@ -113,12 +114,12 @@ class MockDemoDataService {
       'specialite': 'Pédiatrie',
       'hopital': 'Centre de Santé de Butare',
       'disponibilite': 'Lundi - Vendredi, 07:30 - 14:30',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kMaleDoctorPhotos[2],
+      'profileImageUrl': kMaleDoctorPhotos[2],
       'user': {
         'nom': 'Dr. Patrick Habimana',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kMaleDoctorPhotos[2],
+        'profileImageUrl': kMaleDoctorPhotos[2],
       },
     },
     {
@@ -127,12 +128,12 @@ class MockDemoDataService {
       'specialite': 'Gynécologie',
       'hopital': 'Maternité de Bujumbura',
       'disponibilite': 'Mardi - Samedi, 08:30 - 15:30',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kFemaleDoctorPhotos[1],
+      'profileImageUrl': kFemaleDoctorPhotos[1],
       'user': {
         'nom': 'Dr. Sandrine Iradukunda',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kFemaleDoctorPhotos[1],
+        'profileImageUrl': kFemaleDoctorPhotos[1],
       },
     },
     {
@@ -141,12 +142,12 @@ class MockDemoDataService {
       'specialite': 'Dermatologie',
       'hopital': 'Clinique Kigali Beauty Care',
       'disponibilite': 'Lundi - Jeudi, 10:00 - 18:00',
-      'profileImageUrl':
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80',
+      'photo_url': kMaleDoctorPhotos[3],
+      'profileImageUrl': kMaleDoctorPhotos[3],
       'user': {
         'nom': 'Dr. Eric Kalisa',
-        'profileImageUrl':
-            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80',
+        'photo_url': kMaleDoctorPhotos[3],
+        'profileImageUrl': kMaleDoctorPhotos[3],
       },
     },
   ];

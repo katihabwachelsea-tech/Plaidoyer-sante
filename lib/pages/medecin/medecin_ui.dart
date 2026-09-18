@@ -22,6 +22,7 @@ class DoctorAvatar extends StatelessWidget {
   final double radius;
   final Color? background;
   final Color? foreground;
+  final String? imageUrl;
 
   const DoctorAvatar({
     super.key,
@@ -29,6 +30,7 @@ class DoctorAvatar extends StatelessWidget {
     this.radius = 22,
     this.background,
     this.foreground,
+    this.imageUrl,
   });
 
   @override
@@ -41,6 +43,15 @@ class DoctorAvatar extends StatelessWidget {
             .take(2)
             .map((p) => p[0].toUpperCase())
             .join();
+
+    if (imageUrl != null && imageUrl!.startsWith('http')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: background ?? AppColors.ice,
+        backgroundImage: NetworkImage(imageUrl!),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
 
     return CircleAvatar(
       radius: radius,

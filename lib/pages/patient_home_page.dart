@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/patient_api_service.dart';
+import '../utils/doctor_photo.dart';
 import '../widgets/metric_card.dart';
 import 'doctors_list_page.dart';
 import 'patient/doctor_booking_page.dart';
@@ -21,6 +22,8 @@ class _PatientHomePageState extends State<PatientHomePage> {
   List<dynamic> _doctors = [];
   List<dynamic> _recommendedDoctors = [];
   bool _isLoading = false;
+  bool _showAllDoctors = false; // voir plus / voir moins
+  static const int _doctorsPreviewCount = 5;
 
   // Vrais rendez-vous chargés depuis GET /api/appointments
   List<Map<String, dynamic>> _appointments = [];
@@ -285,8 +288,35 @@ class _PatientHomePageState extends State<PatientHomePage> {
       );
     }
 
+    final visible = _showAllDoctors
+        ? _doctors
+        : _doctors.take(_doctorsPreviewCount).toList();
+    final hasMore = _doctors.length > _doctorsPreviewCount;
+
     return Column(
-      children: _doctors.map((doctor) => _buildDoctorCard(doctor)).toList(),
+      children: [
+        ...visible.map((doctor) => _buildDoctorCard(doctor)),
+        if (hasMore) ...[
+          const SizedBox(height: 4),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _showAllDoctors = !_showAllDoctors),
+              icon: Icon(_showAllDoctors
+                  ? Icons.expand_less_rounded
+                  : Icons.expand_more_rounded),
+              label: Text(_showAllDoctors
+                  ? 'Voir moins'
+                  : 'Voir plus (${_doctors.length - _doctorsPreviewCount} autres)'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -295,6 +325,8 @@ class _PatientHomePageState extends State<PatientHomePage> {
     final specialite = (doctor['specialite'] ?? 'Médecin').toString();
     final hopital =
         (doctor['hopital'] ?? 'Établissement non renseigné').toString();
+
+    final photoUrl = doctorPhotoUrl(doctor, index: _doctors.indexOf(doctor));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -307,17 +339,38 @@ class _PatientHomePageState extends State<PatientHomePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.person_rounded,
-              color: AppColors.primary,
-              size: 28,
+          // Photo médecin
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              photoUrl,
+              width: 60,
+              height: 68,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 60,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_rounded,
+                    color: AppColors.primary, size: 30),
+              ),
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  width: 60,
+                  height: 68,
+                  color: AppColors.surfaceVariant,
+                  child: const Center(
+                      child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child:
+                              CircularProgressIndicator(strokeWidth: 2))),
+                );
+              },
             ),
           ),
           const SizedBox(width: 12),
@@ -331,42 +384,45 @@ class _PatientHomePageState extends State<PatientHomePage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 16,
+                    fontSize: 15,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  specialite,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                const SizedBox(height: 3),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    specialite,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
+                    const Icon(Icons.location_on_outlined,
+                        size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 3),
                     Expanded(
                       child: Text(
                         hopital,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
+                            color: AppColors.textSecondary, fontSize: 12),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 9),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: FilledButton(
@@ -376,12 +432,11 @@ class _PatientHomePageState extends State<PatientHomePage> {
                       foregroundColor: AppColors.textOnPrimary,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                          horizontal: 16, vertical: 7),
                       visualDensity: VisualDensity.compact,
                     ),
-                    child: const Text('Prendre RDV'),
+                    child: const Text('Prendre RDV',
+                        style: TextStyle(fontSize: 12)),
                   ),
                 ),
               ],
