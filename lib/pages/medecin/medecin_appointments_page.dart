@@ -95,6 +95,17 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   }
 
   Future<void> _startConsultation(Appointment rdv) async {
+    if (!rdv.isToday) {
+      final dateLabel = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Consultation possible uniquement le jour du RDV ($dateLabel).'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
     final done = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => ConsultationFormPage(appointment: rdv)),
@@ -285,6 +296,7 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = DateFormat('EEE d MMM', 'fr_FR').format(appointment.dateHeure.toLocal());
     final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
+    final canConsult = appointment.isToday && appointment.isConfirme;
 
     return MedecinCard(
       child: Column(
@@ -347,6 +359,13 @@ class _AppointmentCard extends StatelessWidget {
               ],
             ),
           ),
+          if (!appointment.isToday) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Consultation disponible le jour du rendez-vous uniquement.',
+              style: TextStyle(fontSize: 12, color: AppColors.warning.withValues(alpha: 0.95)),
+            ),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -360,10 +379,13 @@ class _AppointmentCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: FilledButton.icon(
-                  onPressed: onConsult,
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  onPressed: canConsult ? onConsult : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.35),
+                  ),
                   icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Consulter'),
+                  label: Text(canConsult ? 'Consulter' : 'Pas encore'),
                 ),
               ),
             ],

@@ -32,6 +32,13 @@ class Appointment {
   bool get isConfirme => statut == 'Confirme';
   bool get isTermine => statut == 'Termine';
 
+  /// True si le RDV est prévu aujourd'hui (fuseau local appareil).
+  bool get isToday {
+    final local = dateHeure.toLocal();
+    final now = DateTime.now();
+    return local.year == now.year && local.month == now.month && local.day == now.day;
+  }
+
   String get patientDisplayName => patientNom ?? 'Patient #$patientUserId';
 
   factory Appointment.fromApiMap(Map<String, dynamic> map) {

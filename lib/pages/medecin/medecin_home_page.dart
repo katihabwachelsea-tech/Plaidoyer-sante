@@ -79,6 +79,17 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
   }
 
   Future<void> _openConsultation(Appointment rdv) async {
+    if (!rdv.isToday) {
+      final dateLabel = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Consultation possible uniquement le jour du RDV ($dateLabel).'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
     final done = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => ConsultationFormPage(appointment: rdv)),
