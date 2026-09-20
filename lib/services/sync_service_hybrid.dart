@@ -12,7 +12,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/patient.dart';
 import 'api_service.dart';
 import 'db_service.dart';
-import 'mock_demo_data.dart';
 
 class SyncServiceHybrid {
   static final SyncServiceHybrid instance = SyncServiceHybrid._internal();
@@ -120,39 +119,19 @@ class SyncServiceHybrid {
   // ========== LECTURE (API d'abord, SQLite en fallback) ==========
 
   Future<List<Patient>> getRecentPatients(int limit) async {
-    final patients = await _db.getRecentPatients(limit);
-    if (patients.isNotEmpty || !MockDemoDataService.isEnabled) return patients;
-    return MockDemoDataService.instance.getPatients(limit: limit);
+    return _db.getRecentPatients(limit);
   }
 
   Future<List<Patient>> getAllPatients() async {
-    final patients = await _db.getAllPatients();
-    if (patients.isNotEmpty || !MockDemoDataService.isEnabled) return patients;
-    return MockDemoDataService.instance.patients;
+    return _db.getAllPatients();
   }
 
   Future<int> getPatientCount() async {
-    final count = await _db.getPatientCount();
-    if (count > 0 || !MockDemoDataService.isEnabled) return count;
-    return MockDemoDataService.instance.patients.length;
+    return _db.getPatientCount();
   }
 
   Future<List<Patient>> searchPatients(String query) async {
-    final patients = await _db.searchPatients(query);
-    if (patients.isNotEmpty || !MockDemoDataService.isEnabled) return patients;
-
-    if (query.isEmpty) {
-      return MockDemoDataService.instance.patients;
-    }
-
-    final lower = query.toLowerCase();
-    return MockDemoDataService.instance.patients
-        .where((patient) =>
-            patient.nom.toLowerCase().contains(lower) ||
-            patient.prenom.toLowerCase().contains(lower) ||
-            patient.maladie.toLowerCase().contains(lower) ||
-            patient.pays.toLowerCase().contains(lower))
-        .toList();
+    return _db.searchPatients(query);
   }
 
   Future<Patient?> getPatientById(int id) async {

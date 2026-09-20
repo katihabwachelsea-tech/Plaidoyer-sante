@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
+import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../../config/app_config.dart';
 import 'payment_page.dart';
@@ -406,6 +407,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
   }
 
   Widget _buildDoctorCard() {
+    final photoUrl = doctorPhotoUrl(widget.doctor);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -415,14 +417,35 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              photoUrl,
+              width: 56,
+              height: 64,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 56,
+                height: 64,
+                color: AppColors.primary.withValues(alpha: 0.10),
+                child: const Icon(Icons.person_rounded, color: AppColors.primary),
+              ),
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  width: 56,
+                  height: 64,
+                  color: AppColors.surfaceVariant,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              },
             ),
-            child: const Icon(Icons.person_rounded, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -431,10 +454,14 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
               children: [
                 Text(
                   _doctorName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                 ),
                 Text(
                   _specialty,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w600,

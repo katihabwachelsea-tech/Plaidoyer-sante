@@ -7,7 +7,7 @@ class MockDemoDataService {
 
   static final MockDemoDataService instance = MockDemoDataService._internal();
 
-  static bool demoMode = true;
+  static bool demoMode = false;
 
   static void setDemoMode(bool enabled) {
     demoMode = enabled;

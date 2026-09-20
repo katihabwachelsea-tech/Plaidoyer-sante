@@ -34,17 +34,30 @@ class DoctorDetailPage extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.primary, width: 3),
-                  image: imageUrl.isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(imageUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
                   color: AppColors.primary.withAlpha((0.1 * 255).round()),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: imageUrl.isEmpty
                     ? const Icon(Icons.person, size: 52, color: AppColors.primary)
-                    : null,
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.person,
+                          size: 52,
+                          color: AppColors.primary,
+                        ),
+                        loadingBuilder: (_, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
             const SizedBox(height: AppSizes.paddingL),
@@ -76,8 +89,12 @@ class DoctorDetailPage extends StatelessWidget {
             const SizedBox(height: AppSizes.paddingL),
             _infoTile(Icons.location_on_rounded, 'Hôpital / centre', hopital),
             _infoTile(Icons.access_time_rounded, 'Disponibilité', disponibilite),
-            _infoTile(Icons.star_rounded, 'Expérience', 'Plus de 8 ans d’expérience clinique'),
-            _infoTile(Icons.medical_services_rounded, 'Consultation', 'Suivi personnalisé et orienté patient'),
+            if ((doctor['biographie'] ?? '').toString().trim().isNotEmpty)
+              _infoTile(
+                Icons.info_outline_rounded,
+                'À propos',
+                doctor['biographie'].toString(),
+              ),
             const SizedBox(height: AppSizes.paddingL),
             SizedBox(
               width: double.infinity,

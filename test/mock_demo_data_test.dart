@@ -3,16 +3,14 @@ import 'package:examen/services/mock_demo_data.dart';
 
 void main() {
   group('Mock demo data', () {
-    test('should expose doctors and specialties for UI demo', () {
-      final service = MockDemoDataService.instance;
-
-      expect(service.doctors, isNotEmpty);
-      expect(service.specialties, isNotEmpty);
-      expect(service.patients, isNotEmpty);
+    test('demo mode is disabled by default in production paths', () {
+      expect(MockDemoDataService.instance.isEnabled, isFalse);
     });
 
-    test('should keep demo mode enabled for design preview', () {
-      expect(MockDemoDataService.instance.isEnabled, isTrue);
+    test('demo catalog still exists for optional offline preview', () {
+      final service = MockDemoDataService.instance;
+      expect(service.doctors, isNotEmpty);
+      expect(service.specialties, isNotEmpty);
     });
   });
 }

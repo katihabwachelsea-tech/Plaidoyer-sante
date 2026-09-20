@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/appointment.dart';
 import '../config/app_config.dart';
-import 'mock_medecin_data.dart';
 import 'api_logger.dart';
 
 class MedecinApiService {
@@ -41,10 +40,6 @@ class MedecinApiService {
 
   /// RDV confirmés uniquement (filtrés côté API — statut == Confirme)
   Future<List<Appointment>> getAppointments({bool todayOnly = false}) async {
-    if (MockMedecinDataService.isEnabled) {
-      return MockMedecinDataService.instance.getAppointmentsDemo();
-    }
-
     final uri = Uri.parse('$baseUrl/medecin/appointments').replace(
       queryParameters: todayOnly ? {'today': '1'} : null,
     );
@@ -62,10 +57,6 @@ class MedecinApiService {
   }
 
   Future<int> getTodayAppointmentsCount() async {
-    if (MockMedecinDataService.isEnabled) {
-      return MockMedecinDataService.instance.getTodayAppointmentsCountDemo();
-    }
-
     final url = '$baseUrl/medecin/appointments/today-count';
     final headers = await _headers();
     ApiLogger.request(method: 'GET', url: url, headers: headers);
@@ -105,10 +96,6 @@ class MedecinApiService {
   }
 
   Future<MedecinProfile> getProfile() async {
-    if (MockMedecinDataService.isEnabled) {
-      return MockMedecinDataService.instance.getProfileDemo();
-    }
-
     final url = '$baseUrl/medecin/profile';
     final headers = await _headers();
     ApiLogger.request(method: 'GET', url: url, headers: headers);
@@ -139,10 +126,6 @@ class MedecinApiService {
   }
 
   Future<List<Creneau>> getCreneaux({String? from, String? to}) async {
-    if (MockMedecinDataService.isEnabled) {
-      return MockMedecinDataService.instance.getCreneauxDemo(from: from, to: to);
-    }
-
     final params = <String, String>{};
     if (from != null) params['from'] = from;
     if (to != null) params['to'] = to;

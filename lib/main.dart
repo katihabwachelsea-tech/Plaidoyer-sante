@@ -13,50 +13,65 @@ import 'pages/patient/patient_navigation.dart';
 import 'pages/medecin/medecin_navigation.dart';
 import 'services/auth_service.dart';
 import 'services/app_data_mode.dart';
+import 'services/settings_service.dart';
 import 'models/user.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR');
+  await SettingsService.instance.loadSettings();
 
-  // Passer en mode production — désactive toutes les données mockées
-  // et force l'utilisation des vrais endpoints Laravel.
+  // Mode production — API Laravel uniquement, pas de données fictives.
   AppDataMode.enableProductionMode();
 
   runApp(const PlaidoyerSanteApp());
 }
 
-// ----------------------------------------------------------------------
-// WIDGET PRINCIPAL DE L'APPLICATION
-// ----------------------------------------------------------------------
-
-class PlaidoyerSanteApp extends StatelessWidget {
+class PlaidoyerSanteApp extends StatefulWidget {
   const PlaidoyerSanteApp({super.key});
 
   @override
+  State<PlaidoyerSanteApp> createState() => _PlaidoyerSanteAppState();
+}
+
+class _PlaidoyerSanteAppState extends State<PlaidoyerSanteApp> {
+  final _settings = SettingsService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.addListener(_onSettingsChanged);
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = _settings.cachedDarkMode;
+
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-
-      // L'écran de démarrage est la vérification d'authentification
+      darkTheme: AppTheme.darkTheme,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       home: const LoginPage(),
-
-      // Configuration des routes
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const MainNavigation(),
         '/add-patient': (context) => const AddPatientPage(),
-        // '/ai-chat': (context) => const AIChatPage(),
       },
     );
   }
 }
-
-// ----------------------------------------------------------------------
-// LOGIQUE D'AUTHENTIFICATION AU DÉMARRAGE
-// ----------------------------------------------------------------------
 
 class AuthCheck extends StatefulWidget {
   const AuthCheck({super.key});
@@ -73,13 +88,11 @@ class _AuthCheckState extends State<AuthCheck> {
   @override
   void initState() {
     super.initState();
-    _checkLoginStatus(); 
+    _checkLoginStatus();
   }
 
   Future<void> _checkLoginStatus() async {
     final authService = AuthService.instance;
-
-    // Attendre la vérification du token stocké
     final isLoggedIn = await authService.isLoggedIn();
     final role = await authService.getStoredRole();
 
@@ -95,14 +108,12 @@ class _AuthCheckState extends State<AuthCheck> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      // Écran de chargement avec le logo de l'app
       return Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo médical
               Container(
                 width: 120,
                 height: 120,
@@ -152,10 +163,6 @@ class _AuthCheckState extends State<AuthCheck> {
   }
 }
 
-// ----------------------------------------------------------------------
-// NAVIGATION PRINCIPALE
-// ----------------------------------------------------------------------
-
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -165,12 +172,12 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _pages = [
-    const HomePage(), 
+    const HomePage(),
     const StatisticsPage(),
     const SponsorPage(),
-    const ProfilePage(), // ✅ Vraie page de profil
+    const ProfilePage(),
   ];
 
   @override
@@ -208,8 +215,6 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
         ],
       ),
-
-      // Bouton flottant (visible seulement sur la page d'accueil)
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton(
               onPressed: () async {

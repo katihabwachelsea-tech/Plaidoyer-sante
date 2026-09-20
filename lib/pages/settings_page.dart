@@ -46,11 +46,11 @@ class _SettingsPageState extends State<SettingsPage> {
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(value ? '🌙 Mode sombre activé' : '☀️ Mode clair activé'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+          SnackBar(
+            content: Text(value ? 'Mode sombre activé' : 'Mode clair activé'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
       );
     }
   }

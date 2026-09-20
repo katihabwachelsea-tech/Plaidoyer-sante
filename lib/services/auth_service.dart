@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
 import '../config/app_config.dart';
-import 'mock_demo_data.dart';
 import 'api_logger.dart';
 
 class AuthService {
@@ -211,28 +210,6 @@ class AuthService {
     String? specialite,
     String? searchQuery,
   }) async {
-    if (MockDemoDataService.isEnabled) {
-      final demoDoctors = MockDemoDataService.instance.doctors;
-      final filteredDoctors = demoDoctors.where((doctor) {
-        final name = (doctor['user']?['nom'] ?? doctor['nom'] ?? '')
-            .toString()
-            .toLowerCase();
-        final specialty = (doctor['specialite'] ?? '').toString().toLowerCase();
-        final query = (searchQuery ?? '').toLowerCase();
-        final selectedSpecialty = (specialite ?? '').toLowerCase();
-
-        final matchesQuery = query.isEmpty || name.contains(query) || specialty.contains(query);
-        final matchesSpecialty = selectedSpecialty.isEmpty || specialty.contains(selectedSpecialty);
-        return matchesQuery && matchesSpecialty;
-      }).toList();
-
-      return {
-        'success': true,
-        'doctors': filteredDoctors,
-        'message': 'Données de démonstration actives',
-      };
-    }
-
     try {
       final token = await _storage.read(key: 'jwt_token');
 
@@ -290,14 +267,6 @@ class AuthService {
 
   // RÉCUPÉRER TOUTES LES SPÉCIALITÉS
   Future<Map<String, dynamic>> fetchSpecialties() async {
-    if (MockDemoDataService.isEnabled) {
-      return {
-        'success': true,
-        'specialties': MockDemoDataService.instance.specialties,
-        'message': 'Spécialités de démonstration',
-      };
-    }
-
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/specialites'),

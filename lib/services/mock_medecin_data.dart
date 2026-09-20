@@ -5,7 +5,7 @@ class MockMedecinDataService {
 
   static final MockMedecinDataService instance = MockMedecinDataService._internal();
 
-  static bool demoMode = true;
+  static bool demoMode = false;
 
   static void setDemoMode(bool enabled) {
     demoMode = enabled;

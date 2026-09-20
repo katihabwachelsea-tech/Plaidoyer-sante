@@ -102,85 +102,82 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                 slivers: [
                   SliverToBoxAdapter(child: _Header(name: _shortName, dateLabel: dateLabel)),
                   SliverToBoxAdapter(
-                    child: Transform.translate(
-                      offset: const Offset(0, -28),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _KpiStrip(
-                              items: [
-                                _KpiData('Aujourd’hui', '$_todayCount', 'RDV payés', Icons.event_available_rounded, const Color(0xFF0B6EBD), () => widget.onOpenTab?.call(1)),
-                                _KpiData('À venir', '$_upcomingCount', 'Confirmés', Icons.event_repeat_rounded, const Color(0xFF0E9F6E), () => widget.onOpenTab?.call(1)),
-                                _KpiData('Créneaux', '$_creneauxCount', 'Cette semaine', Icons.schedule_rounded, const Color(0xFF3B82F6), () => widget.onOpenTab?.call(2)),
-                                _KpiData('Patients', '$_patientsCount', 'Suivis', Icons.groups_rounded, const Color(0xFFF59E0B), () => widget.onOpenTab?.call(1)),
-                                _KpiData('Dossiers', '$_consultationsCount', 'Consultés', Icons.folder_shared_rounded, const Color(0xFF8B5CF6), () => widget.onOpenTab?.call(1)),
-                              ],
-                            ),
-                            const SizedBox(height: 22),
-                            SectionLabel(
-                              title: 'Agenda du jour',
-                              action: 'Voir tout',
-                              onAction: () => widget.onOpenTab?.call(1),
-                            ),
-                            const SizedBox(height: 10),
-                            if (_today.isEmpty)
-                              const EmptyHint(
-                                icon: Icons.wb_sunny_outlined,
-                                title: 'Journée encore libre',
-                                subtitle: 'Les rendez-vous payés d’aujourd’hui apparaîtront ici, prêts à être consultés.',
-                              )
-                            else
-                              ..._today.map((rdv) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _TodayTile(
-                                      appointment: rdv,
-                                      onConsult: () => _openConsultation(rdv),
-                                    ),
-                                  )),
-                            const SizedBox(height: 18),
-                            const SectionLabel(title: 'Actions rapides'),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _QuickAction(
-                                    icon: Icons.add_alarm_rounded,
-                                    label: 'Créneau',
-                                    onTap: () => widget.onOpenTab?.call(2),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _KpiStrip(
+                            items: [
+                              _KpiData('Aujourd’hui', '$_todayCount', 'RDV payés', Icons.event_available_rounded, const Color(0xFF0B6EBD), () => widget.onOpenTab?.call(1)),
+                              _KpiData('À venir', '$_upcomingCount', 'Confirmés', Icons.event_repeat_rounded, const Color(0xFF0E9F6E), () => widget.onOpenTab?.call(1)),
+                              _KpiData('Créneaux', '$_creneauxCount', 'Cette semaine', Icons.schedule_rounded, const Color(0xFF3B82F6), () => widget.onOpenTab?.call(2)),
+                              _KpiData('Patients', '$_patientsCount', 'Suivis', Icons.groups_rounded, const Color(0xFFF59E0B), () => widget.onOpenTab?.call(1)),
+                              _KpiData('Dossiers', '$_consultationsCount', 'Consultés', Icons.folder_shared_rounded, const Color(0xFF8B5CF6), () => widget.onOpenTab?.call(1)),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                          SectionLabel(
+                            title: 'Agenda du jour',
+                            action: 'Voir tout',
+                            onAction: () => widget.onOpenTab?.call(1),
+                          ),
+                          const SizedBox(height: 10),
+                          if (_today.isEmpty)
+                            const EmptyHint(
+                              icon: Icons.wb_sunny_outlined,
+                              title: 'Journée encore libre',
+                              subtitle: 'Les rendez-vous payés d’aujourd’hui apparaîtront ici, prêts à être consultés.',
+                            )
+                          else
+                            ..._today.map((rdv) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _TodayTile(
+                                    appointment: rdv,
+                                    onConsult: () => _openConsultation(rdv),
                                   ),
+                                )),
+                          const SizedBox(height: 18),
+                          const SectionLabel(title: 'Actions rapides'),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _QuickAction(
+                                  icon: Icons.add_alarm_rounded,
+                                  label: 'Créneau',
+                                  onTap: () => widget.onOpenTab?.call(2),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _QuickAction(
-                                    icon: Icons.medical_services_rounded,
-                                    label: 'Consultations',
-                                    onTap: () => widget.onOpenTab?.call(1),
-                                  ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _QuickAction(
+                                  icon: Icons.medical_services_rounded,
+                                  label: 'Consultations',
+                                  onTap: () => widget.onOpenTab?.call(1),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _QuickAction(
-                                    icon: Icons.person_rounded,
-                                    label: 'Profil',
-                                    onTap: () => widget.onOpenTab?.call(3),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (_error != null) ...[
-                              const SizedBox(height: 16),
-                              MedecinCard(
-                                child: Text(
-                                  'API indisponible.\n$_error',
-                                  style: const TextStyle(fontSize: 12, color: AppColors.warning),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _QuickAction(
+                                  icon: Icons.person_rounded,
+                                  label: 'Profil',
+                                  onTap: () => widget.onOpenTab?.call(3),
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 28),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 16),
+                            MedecinCard(
+                              child: Text(
+                                'API indisponible.\n$_error',
+                                style: const TextStyle(fontSize: 12, color: AppColors.warning),
+                              ),
+                            ),
                           ],
-                        ),
+                          const SizedBox(height: 28),
+                        ],
                       ),
                     ),
                   ),
@@ -277,7 +274,7 @@ class _KpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 130,
+      height: 148,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
@@ -288,16 +285,15 @@ class _KpiStrip extends StatelessWidget {
             onTap: item.onTap,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              width: 140,
+              width: 148,
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: MedecinDecor.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 32,
@@ -308,7 +304,7 @@ class _KpiStrip extends StatelessWidget {
                     ),
                     child: Icon(item.icon, size: 18, color: item.color),
                   ),
-                  const SizedBox(height: 8),
+                  const Spacer(),
                   Text(
                     item.value,
                     style: TextStyle(
@@ -318,7 +314,7 @@ class _KpiStrip extends StatelessWidget {
                       height: 1.1,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     item.title,
                     maxLines: 1,

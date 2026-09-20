@@ -16,6 +16,9 @@ class SettingsService extends ChangeNotifier {
   bool? _cachedDarkMode;
   double? _cachedFontSize;
   String? _cachedLanguage;
+
+  /// Lecture synchrone pour MaterialApp (après loadSettings).
+  bool get cachedDarkMode => _cachedDarkMode ?? false;
 // Charge toutes les valeurs de SharedPreferences dans le cache au démarrage.
   // C'est ce que 'await SettingsService.instance.loadSettings();' appelle dans main.dart.
   Future<void> loadSettings() async {
