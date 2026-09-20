@@ -5,6 +5,7 @@ import '../../services/medecin_api_service.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
+import '../settings_page.dart';
 import 'medecin_ui.dart';
 
 class MedecinProfilePage extends StatefulWidget {
@@ -214,6 +215,20 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.settings_rounded, color: AppColors.primary),
+                    title: const Text('Paramètres'),
+                    subtitle: const Text('Thème sombre / clair'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(

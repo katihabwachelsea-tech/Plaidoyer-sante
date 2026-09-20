@@ -319,36 +319,11 @@ class _DoctorCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Photo médecin
-                ClipRRect(
+                DoctorPhotoImage(
+                  url: photoUrl,
+                  width: 86,
+                  height: 96,
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    photoUrl,
-                    width: 86,
-                    height: 96,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 86,
-                      height: 96,
-                      color: AppColors.primary.withOpacity(0.08),
-                      child: const Icon(Icons.person_rounded,
-                          size: 44, color: AppColors.primary),
-                    ),
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return Container(
-                        width: 86,
-                        height: 96,
-                        color: AppColors.surfaceVariant,
-                        child: const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 ),
                 const SizedBox(width: 14),
 
@@ -406,8 +381,14 @@ class _DoctorCard extends StatelessWidget {
                           ],
                         ),
                       ],
+                      const SizedBox(height: 8),
+                      DoctorModePriceChips(
+                        doctor: doctor is Map
+                            ? Map<String, dynamic>.from(doctor as Map)
+                            : {},
+                      ),
                       if (disponibilite.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
                             const Icon(Icons.access_time_rounded,

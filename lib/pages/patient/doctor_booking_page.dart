@@ -41,6 +41,8 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
   String? _selectedServiceName;
   num? _selectedPrice;
 
+  String? _selectedServiceMode;
+
   bool _isSubmitting = false;
 
   int get _doctorId {
@@ -101,8 +103,9 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
     setState(() => _isLoadingServices = true);
     try {
       final token = await _getToken();
+      // Services liés à CE médecin (pas tout le catalogue)
       final response = await http.get(
-        Uri.parse('$_baseUrl/patient/services'),
+        Uri.parse('$_baseUrl/patient/doctors/$_doctorId/services'),
         headers: {
           'Accept': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
@@ -167,11 +170,18 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
   void _selectService(Map<String, dynamic> service) {
     final id = service['id'] is int ? service['id'] as int : int.parse('${service['id']}');
     final prix = service['prix'];
+    final mode = (service['mode'] ?? 'presentiel').toString();
     setState(() {
       _selectedServiceId = id;
       _selectedServiceName = service['nom_service'] as String?;
       _selectedPrice = prix == null ? null : num.tryParse('$prix');
+      _selectedServiceMode = mode;
     });
+  }
+
+  String _modeLabel(String? mode) {
+    if (mode == 'teleconsultation') return 'Téléconsultation';
+    return 'Présentiel';
   }
 
   Future<void> _submitRequest() async {
@@ -222,6 +232,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
               _summaryLine('Date', '${_longDate(_selectedDate!)} · $_selectedTime'),
               _summaryLine('Motif', _reasonController.text.trim()),
               _summaryLine('Consultation', _selectedServiceName ?? 'Consultation'),
+              _summaryLine('Mode', _modeLabel(_selectedServiceMode)),
               const Divider(height: 28),
               Row(
                 children: [
@@ -417,35 +428,11 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       ),
       child: Row(
         children: [
-          ClipRRect(
+          DoctorPhotoImage(
+            url: photoUrl,
+            width: 56,
+            height: 64,
             borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              photoUrl,
-              width: 56,
-              height: 64,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 56,
-                height: 64,
-                color: AppColors.primary.withValues(alpha: 0.10),
-                child: const Icon(Icons.person_rounded, color: AppColors.primary),
-              ),
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  width: 56,
-                  height: 64,
-                  color: AppColors.surfaceVariant,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                );
-              },
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -610,6 +597,8 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
             : int.parse('${service['id']}');
         final nom = service['nom_service'] as String? ?? 'Consultation';
         final prix = service['prix'] == null ? null : num.tryParse('${service['prix']}');
+        final mode = (service['mode'] ?? 'presentiel').toString();
+        final isTele = mode == 'teleconsultation';
         final selected = _selectedServiceId == id;
 
         return Padding(
@@ -638,9 +627,31 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      nom,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nom,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (isTele ? AppColors.info : AppColors.success)
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            _modeLabel(mode),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isTele ? AppColors.info : AppColors.success,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Text(

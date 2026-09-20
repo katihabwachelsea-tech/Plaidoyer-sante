@@ -340,38 +340,11 @@ class _PatientHomePageState extends State<PatientHomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Photo médecin
-          ClipRRect(
+          DoctorPhotoImage(
+            url: photoUrl,
+            width: 60,
+            height: 68,
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              photoUrl,
-              width: 60,
-              height: 68,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 60,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.person_rounded,
-                    color: AppColors.primary, size: 30),
-              ),
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  width: 60,
-                  height: 68,
-                  color: AppColors.surfaceVariant,
-                  child: const Center(
-                      child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2))),
-                );
-              },
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -422,6 +395,8 @@ class _PatientHomePageState extends State<PatientHomePage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                DoctorModePriceChips(doctor: doctor is Map ? doctor : {}),
                 const SizedBox(height: 9),
                 Align(
                   alignment: Alignment.centerLeft,

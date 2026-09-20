@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../services/patient_api_service.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
+import '../settings_page.dart';
 
 class PatientProfilePage extends StatefulWidget {
   const PatientProfilePage({super.key});
@@ -106,6 +107,16 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
         foregroundColor: AppColors.textOnPrimary,
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Paramètres',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
             onPressed: _load,
@@ -194,6 +205,20 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 20),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.settings_rounded, color: AppColors.primary),
+                      title: const Text('Paramètres'),
+                      subtitle: const Text('Thème sombre / clair'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SettingsPage()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     FilledButton(
                       onPressed: _saving ? null : _save,
                       child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),

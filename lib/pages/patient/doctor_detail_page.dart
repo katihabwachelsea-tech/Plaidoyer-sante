@@ -39,24 +39,11 @@ class DoctorDetailPage extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: imageUrl.isEmpty
                     ? const Icon(Icons.person, size: 52, color: AppColors.primary)
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.person,
-                          size: 52,
-                          color: AppColors.primary,
-                        ),
-                        loadingBuilder: (_, child, progress) {
-                          if (progress == null) return child;
-                          return const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          );
-                        },
+                    : DoctorPhotoImage(
+                        url: imageUrl,
+                        width: 120,
+                        height: 120,
+                        borderRadius: BorderRadius.circular(60),
                       ),
               ),
             ),
@@ -89,6 +76,10 @@ class DoctorDetailPage extends StatelessWidget {
             const SizedBox(height: AppSizes.paddingL),
             _infoTile(Icons.location_on_rounded, 'Hôpital / centre', hopital),
             _infoTile(Icons.access_time_rounded, 'Disponibilité', disponibilite),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSizes.paddingM),
+              child: DoctorModePriceChips(doctor: doctor),
+            ),
             if ((doctor['biographie'] ?? '').toString().trim().isNotEmpty)
               _infoTile(
                 Icons.info_outline_rounded,
