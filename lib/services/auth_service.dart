@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
 import '../config/app_config.dart';
 import 'api_logger.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   static const String baseUrl = AppConfig.baseUrl;
@@ -302,9 +303,19 @@ class AuthService {
 
   // DÉCONNEXION
   Future<void> logout() async {
+    // Retirer le token FCM avant de supprimer le JWT
+    try {
+      await PushNotificationService.instance.removeToken();
+    } catch (_) {}
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'user_role');
     _currentUser = null;
+  }
+
+  /// Met à jour la photo de profil en mémoire (après upload API).
+  void updateProfileImageUrl(String? url) {
+    if (_currentUser == null) return;
+    _currentUser = _currentUser!.copyWith(profileImageUrl: url);
   }
 
   Future<String?> getStoredRole() => _storage.read(key: 'user_role');

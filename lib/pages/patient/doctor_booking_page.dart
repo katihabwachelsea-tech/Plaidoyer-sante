@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import '../../utils/doctor_photo.dart';
@@ -28,6 +30,29 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
   final _formKey = GlobalKey<FormState>();
   final _reasonController = TextEditingController();
+
+  // Urgence
+  String _urgence = 'Normal';
+  static const _urgenceOptions = ['Normal', 'Urgent', 'Tres_urgent'];
+  static const _urgenceLabels = {
+    'Normal':      'Normal',
+    'Urgent':      'Urgent',
+    'Tres_urgent': 'Très urgent',
+  };
+  static const _urgenceColors = {
+    'Normal':      AppColors.success,
+    'Urgent':      AppColors.warning,
+    'Tres_urgent': AppColors.error,
+  };
+  static const _urgenceIcons = {
+    'Normal':      Icons.check_circle_outline_rounded,
+    'Urgent':      Icons.warning_amber_rounded,
+    'Tres_urgent': Icons.emergency_rounded,
+  };
+
+  // Pièces jointes
+  final List<File> _attachments = [];
+  final _picker = ImagePicker();
 
   late final List<DateTime> _days;
   DateTime? _selectedDate;
@@ -80,6 +105,61 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
   }
 
   Future<String?> _getToken() => _storage.read(key: 'jwt_token');
+
+  // ── Pièces jointes ──────────────────────────────────────────────────
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (_attachments.length >= 5) {
+      _showError('Maximum 5 pièces jointes');
+      return;
+    }
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1920,
+    );
+    if (picked != null && mounted) {
+      setState(() => _attachments.add(File(picked.path)));
+    }
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded,
+                    color: AppColors.primary),
+                title: const Text('Choisir depuis la galerie'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded,
+                    color: AppColors.primary),
+                title: const Text('Prendre une photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   String formatFbu(num? value) {
     if (value == null) return '—';
@@ -233,6 +313,9 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
               _summaryLine('Motif', _reasonController.text.trim()),
               _summaryLine('Consultation', _selectedServiceName ?? 'Consultation'),
               _summaryLine('Mode', _modeLabel(_selectedServiceMode)),
+              _summaryLine('Urgence', _urgenceLabels[_urgence] ?? _urgence),
+              if (_attachments.isNotEmpty)
+                _summaryLine('Pièces jointes', '${_attachments.length} fichier(s) joint(s)'),
               const Divider(height: 28),
               Row(
                 children: [
@@ -288,21 +371,52 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
       final dateRdv = '$dateStr ${_selectedTime!}:00';
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/patient/appointments'),
-        headers: {
-          'Content-Type': 'application/json',
+      http.Response response;
+
+      if (_attachments.isEmpty) {
+        // ── Pas de fichiers : JSON simple (compatible même sans migration urgence) ──
+        response = await http.post(
+          Uri.parse('$_baseUrl/patient/appointments'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'medecin_id': _doctorId,
+            'service_id': _selectedServiceId,
+            'date_rdv':   dateRdv,
+            'motif':      _reasonController.text.trim(),
+            'urgence':    _urgence,
+          }),
+        ).timeout(const Duration(seconds: 30));
+      } else {
+        // ── Avec fichiers : multipart ──────────────────────────────────────────
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('$_baseUrl/patient/appointments'),
+        );
+        request.headers.addAll({
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'medecin_id': _doctorId,
-          'service_id': _selectedServiceId,
-          'date_rdv': dateRdv,
-          'motif': _reasonController.text.trim(),
-        }),
-      ).timeout(const Duration(seconds: 30));
+        });
+        request.fields['medecin_id'] = '$_doctorId';
+        request.fields['service_id'] = '$_selectedServiceId';
+        request.fields['date_rdv']   = dateRdv;
+        request.fields['motif']      = _reasonController.text.trim();
+        request.fields['urgence']    = _urgence;
 
+        for (int i = 0; i < _attachments.length; i++) {
+          request.files.add(await http.MultipartFile.fromPath(
+            'pieces_jointes[$i]',
+            _attachments[i].path,
+          ));
+        }
+
+        final streamed = await request.send()
+            .timeout(const Duration(seconds: 60));
+        response = await http.Response.fromStream(streamed);
+      }
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 201 && data['status'] == true) {
@@ -397,6 +511,24 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                       hintText: 'Ex. Douleurs persistantes, suivi de contrôle…',
                     ),
                   ),
+                  const SizedBox(height: 18),
+
+                  // ── Niveau d'urgence ──────────────────────────────
+                  _section('Niveau d\'urgence'),
+                  const SizedBox(height: 10),
+                  _buildUrgencePicker(),
+                  const SizedBox(height: 18),
+
+                  // ── Pièces jointes ────────────────────────────────
+                  _section('Pièces jointes (optionnel)'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ajoutez jusqu\'à 5 photos ou documents médicaux',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildAttachmentPicker(),
                 ],
               ),
             ),
@@ -414,6 +546,133 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
             fontWeight: FontWeight.w800,
             color: AppColors.textPrimary,
           ),
+    );
+  }
+
+  // ── Urgence picker ───────────────────────────────────────────────────
+  Widget _buildUrgencePicker() {
+    return Row(
+      children: _urgenceOptions.map((opt) {
+        final selected = _urgence == opt;
+        final color   = _urgenceColors[opt]!;
+        final icon    = _urgenceIcons[opt]!;
+        final label   = _urgenceLabels[opt]!;
+
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              onTap: () => setState(() => _urgence = opt),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? color.withValues(alpha: 0.12)
+                      : AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? color : AppColors.border,
+                    width: selected ? 1.5 : 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(icon, color: color, size: 20),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                        color: selected ? color : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Pièces jointes ───────────────────────────────────────────────────
+  Widget _buildAttachmentPicker() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        // Miniatures des fichiers ajoutés
+        ..._attachments.asMap().entries.map((entry) {
+          final i    = entry.key;
+          final file = entry.value;
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(
+                  file,
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: GestureDetector(
+                  onTap: () => setState(() => _attachments.removeAt(i)),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: const Icon(Icons.close_rounded,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+
+        // Bouton ajouter (visible si < 5 fichiers)
+        if (_attachments.length < 5)
+          InkWell(
+            onTap: _showAttachmentOptions,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    style: BorderStyle.solid),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_photo_alternate_rounded,
+                      color: AppColors.primary, size: 24),
+                  SizedBox(height: 4),
+                  Text('Ajouter',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 

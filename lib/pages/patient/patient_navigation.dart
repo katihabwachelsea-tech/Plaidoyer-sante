@@ -4,6 +4,7 @@ import '../patient_home_page.dart';
 import 'patient_appointments_page.dart';
 import 'health_history_page.dart';
 import 'patient_profile_page.dart';
+import '../../widgets/notification_bell.dart';
 
 class PatientNavigation extends StatefulWidget {
   const PatientNavigation({super.key});
@@ -25,6 +26,20 @@ class _PatientNavigationState extends State<PatientNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: Text(
+          AppConstants.appName,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
+        actions: [
+          NotificationBell(),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: _pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
         backgroundColor: AppColors.cardBackground,

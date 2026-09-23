@@ -77,6 +77,9 @@ class MedecinApiService {
     required String diagnostic,
     String? ordonnance,
     String? notes,
+    String? anamnese,
+    String? examen,
+    String? signatureBase64,
   }) async {
     final url = '$baseUrl/consultations';
     final headers = await _headers();
@@ -85,6 +88,10 @@ class MedecinApiService {
       'diagnostic': diagnostic,
       'ordonnance': ordonnance,
       'notes': notes,
+      if (anamnese != null && anamnese.isNotEmpty) 'anamnese': anamnese,
+      if (examen != null && examen.isNotEmpty) 'examen': examen,
+      if (signatureBase64 != null && signatureBase64.isNotEmpty)
+        'signature': signatureBase64,
     };
     ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
     final response = await http
@@ -196,6 +203,31 @@ class MedecinApiService {
     _checkStatus(response);
   }
 
+  /// POST /api/medecin/appointments/{id}/accept
+  Future<void> acceptAppointment(int id) async {
+    final url = '$baseUrl/medecin/appointments/$id/accept';
+    final headers = await _headers();
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
+    final response = await http
+        .post(Uri.parse(url), headers: headers)
+        .timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+  }
+
+  /// POST /api/medecin/appointments/{id}/refuse
+  Future<void> refuseAppointment(int id, {String? raison}) async {
+    final url = '$baseUrl/medecin/appointments/$id/refuse';
+    final headers = await _headers();
+    final body = raison != null ? jsonEncode({'raison': raison}) : null;
+    ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
+    final response = await http
+        .post(Uri.parse(url), headers: headers, body: body)
+        .timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+  }
+
   /// POST /api/medecin/appointments/{id}/cancel
   Future<void> cancelAppointment(int id) async {
     final url = '$baseUrl/medecin/appointments/$id/cancel';
@@ -206,5 +238,24 @@ class MedecinApiService {
         .timeout(_timeout);
     ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
     _checkStatus(response);
+  }
+
+  /// POST /api/medecin/profile/photo (multipart)
+  Future<String> uploadPhoto(String filePath) async {
+    final url = '$baseUrl/medecin/profile/photo';
+    final token = await _token();
+    final request = http.MultipartRequest('POST', Uri.parse(url));
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Accept'] = 'application/json';
+    request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+    ApiLogger.request(method: 'POST', url: url, headers: request.headers);
+    final streamed = await request.send().timeout(_timeout);
+    final response = await http.Response.fromStream(streamed);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+    final data = _decode(response);
+    return (data['photo_url'] ?? '').toString();
   }
 }

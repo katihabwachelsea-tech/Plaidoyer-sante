@@ -3,11 +3,11 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
-import '../main.dart';
 import 'register_page.dart';
 import 'patient/patient_navigation.dart';
 import 'medecin/medecin_navigation.dart';
 import '../widgets/metric_card.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage>
           );
         } else {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const MainNavigation()),
+            MaterialPageRoute(builder: (_) => const LoginPage()),
           );
         }
       } else {
@@ -377,7 +377,28 @@ class _LoginPageState extends State<LoginPage>
               enabled: !_isLoading,
               onFieldSubmitted: (_) => _login(),
             ),
-            const SizedBox(height: 22),
+            // Lien mot de passe oublié
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordPage(),
+                          ),
+                        ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 4, horizontal: 0),
+                ),
+                child: const Text(
+                  'Mot de passe oublié ?',
+                  style: TextStyle(color: AppColors.primary, fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
 
             // Bouton connexion
             SizedBox(

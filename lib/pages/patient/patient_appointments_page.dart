@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/local_reminder_service.dart';
 import '../../services/patient_api_service.dart';
+import '../../widgets/join_tele_button.dart';
 import '../../widgets/metric_card.dart';
+import '../chat_page.dart';
 import '../doctors_list_page.dart';
 import 'payment_page.dart';
 
@@ -64,6 +67,7 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
     if (ok != true) return;
     try {
       await _api.cancelAppointment(id);
+      await LocalReminderService.instance.cancelForAppointment(id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Rendez-vous annulé'), backgroundColor: AppColors.success),
@@ -186,8 +190,10 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
           isFuture = dt.isAfter(DateTime.now());
         } catch (_) {}
 
-        final canPay = statut == 'En_attente' && isFuture;
-        final canCancel = (statut == 'En_attente' || statut == 'Confirme') && isFuture;
+        final canPay = (statut == 'En_attente' || statut == 'Accepte') && isFuture;
+        final canCancel = (statut == 'En_attente' || statut == 'Accepte' || statut == 'Confirme') && isFuture;
+        final canJoin = canJoinTeleFromMap(appt);
+        final mode = ((appt['service'] as Map?)?['mode'] ?? '').toString();
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -212,6 +218,17 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
               ),
               const SizedBox(height: 6),
               Text('$service • ${appt['motif'] ?? ''}', style: TextStyle(color: AppColors.textSecondary)),
+              if (mode.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  mode == 'teleconsultation' ? 'Téléconsultation' : 'Présentiel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: mode == 'teleconsultation' ? AppColors.info : AppColors.success,
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               Text(label),
               if (invoice?['montant'] != null)
@@ -224,18 +241,52 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
+              if (canJoin) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: JoinTeleButton(
+                    meetingUrl: appt['meeting_url']?.toString(),
+                    enabled: true,
+                  ),
+                ),
+              ],
               if (canPay || canCancel) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    if (canPay)
+                    // Bouton messagerie
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatPage(
+                              appointmentId: appt['id'] as int,
+                              otherName: doctor.toString(),
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded,
+                            size: 16),
+                        label: const Text('Message'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                        ),
+                      ),
+                    ),
+                    if (canPay) ...[
+                      const SizedBox(width: 8),
                       Expanded(
                         child: FilledButton(
                           onPressed: () => _pay(appt),
                           child: const Text('Payer'),
                         ),
                       ),
+                    ],
                     if (canPay && canCancel) const SizedBox(width: 8),
+                    if (canCancel && !canPay)
+                      const SizedBox(width: 8),
                     if (canCancel)
                       Expanded(
                         child: OutlinedButton(
@@ -244,6 +295,29 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
                         ),
                       ),
                   ],
+                ),
+              ] else ...[
+                // RDV confirmé ou terminé — juste le bouton message
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatPage(
+                          appointmentId: appt['id'] as int,
+                          otherName: doctor.toString(),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline_rounded,
+                        size: 16),
+                    label: const Text('Messagerie'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -262,16 +336,18 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (statut) {
       'Confirme' => AppColors.success,
-      'Termine' => AppColors.info,
-      'Annule' => AppColors.error,
-      _ => AppColors.warning,
+      'Accepte'  => AppColors.info,
+      'Termine'  => AppColors.info,
+      'Annule'   => AppColors.error,
+      _          => AppColors.warning,
     };
     final label = switch (statut) {
-      'Confirme' => 'Confirmé',
-      'En_attente' => 'À payer',
-      'Termine' => 'Terminé',
-      'Annule' => 'Annulé',
-      _ => statut,
+      'Confirme'  => 'Confirmé',
+      'Accepte'   => 'Accepté — À payer',
+      'En_attente'=> 'En attente de validation',
+      'Termine'   => 'Terminé',
+      'Annule'    => 'Annulé',
+      _           => statut,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

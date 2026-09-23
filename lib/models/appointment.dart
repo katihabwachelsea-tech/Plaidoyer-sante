@@ -7,12 +7,17 @@ class Appointment {
   final int? creneauId;
   final String motif;
   final String statut;
+  final String urgence;
+  final List<String> piecesJointes;
   final DateTime dateHeure;
   final double? montant;
   final String? paymentRef;
   final String? patientNom;
   final String? patientEmail;
   final String? patientTelephone;
+  final String? meetingUrl;
+  final String? serviceMode;
+  final String? serviceName;
 
   const Appointment({
     required this.id,
@@ -21,16 +26,40 @@ class Appointment {
     this.creneauId,
     required this.motif,
     required this.statut,
+    this.urgence = 'Normal',
+    this.piecesJointes = const [],
     required this.dateHeure,
     this.montant,
     this.paymentRef,
     this.patientNom,
     this.patientEmail,
     this.patientTelephone,
+    this.meetingUrl,
+    this.serviceMode,
+    this.serviceName,
   });
 
   bool get isConfirme => statut == 'Confirme';
-  bool get isTermine => statut == 'Termine';
+  bool get isTermine  => statut == 'Termine';
+  bool get isPending  => statut == 'En_attente';
+  bool get isAccepted => statut == 'Accepte';
+  bool get isAnnule   => statut == 'Annule';
+
+  bool get isUrgent     => urgence == 'Urgent';
+  bool get isTresUrgent => urgence == 'Tres_urgent';
+  bool get hasAttachments => piecesJointes.isNotEmpty;
+
+  String get urgenceLabel => switch (urgence) {
+    'Urgent'      => 'Urgent',
+    'Tres_urgent' => 'Très urgent',
+    _             => 'Normal',
+  };
+  bool get isTeleconsultation => serviceMode == 'teleconsultation';
+  bool get canJoinTele =>
+      isTeleconsultation &&
+      isToday &&
+      isConfirme &&
+      (meetingUrl?.isNotEmpty ?? false);
 
   /// True si le RDV est prévu aujourd'hui (fuseau local appareil).
   bool get isToday {
@@ -43,6 +72,7 @@ class Appointment {
 
   factory Appointment.fromApiMap(Map<String, dynamic> map) {
     final patientUser = map['patient_user'] as Map<String, dynamic>?;
+    final service = map['service'] as Map<String, dynamic>?;
     return Appointment(
       id: map['id'] is int ? map['id'] as int : int.parse('${map['id']}'),
       medecinId: map['medecin_id'] is int
@@ -58,6 +88,11 @@ class Appointment {
           : null,
       motif: map['motif'] ?? '',
       statut: map['statut'] ?? 'En_attente',
+      urgence: map['urgence'] as String? ?? 'Normal',
+      piecesJointes: (map['pieces_jointes'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       dateHeure: DateTime.parse(
         (map['date_heure'] ?? map['created_at']).toString().replaceFirst(' ', 'T'),
       ),
@@ -68,6 +103,9 @@ class Appointment {
       patientNom: patientUser?['nom'] as String?,
       patientEmail: patientUser?['email'] as String?,
       patientTelephone: patientUser?['telephone'] as String?,
+      meetingUrl: map['meeting_url']?.toString(),
+      serviceMode: service?['mode']?.toString(),
+      serviceName: service?['nom_service']?.toString(),
     );
   }
 }
@@ -114,6 +152,7 @@ class MedecinProfile {
   final String? nom;
   final String? email;
   final String? telephone;
+  final String? photoUrl;
 
   const MedecinProfile({
     required this.id,
@@ -126,6 +165,7 @@ class MedecinProfile {
     this.nom,
     this.email,
     this.telephone,
+    this.photoUrl,
   });
 
   factory MedecinProfile.fromApiMap(Map<String, dynamic> map) {
@@ -140,9 +180,10 @@ class MedecinProfile {
       hopital: map['hopital'] ?? '',
       biographie: map['biographie'] as String?,
       disponibilite: map['disponibilite'] as String?,
-      nom: user?['nom'] as String?,
-      email: user?['email'] as String?,
-      telephone: user?['telephone'] as String?,
+      nom: user?['nom'] as String? ?? map['nom'] as String?,
+      email: user?['email'] as String? ?? map['email'] as String?,
+      telephone: user?['telephone'] as String? ?? map['telephone'] as String?,
+      photoUrl: user?['photo_url'] as String? ?? map['photo_url'] as String?,
     );
   }
 

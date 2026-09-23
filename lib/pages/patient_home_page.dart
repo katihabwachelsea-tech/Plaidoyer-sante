@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/patient_api_service.dart';
 import '../utils/doctor_photo.dart';
+import '../widgets/join_tele_button.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/notification_bell.dart';
 import 'doctors_list_page.dart';
 import 'patient/doctor_booking_page.dart';
 import 'patient/payment_page.dart';
@@ -152,13 +154,20 @@ class _PatientHomePageState extends State<PatientHomePage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
-              Text(
-                'Bonjour, $firstName',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -0.3,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Bonjour, $firstName',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.3,
+                          ),
                     ),
+                  ),
+                  NotificationBell(color: AppColors.primary),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -626,6 +635,15 @@ class _PatientHomePageState extends State<PatientHomePage> {
                           visualDensity: VisualDensity.compact,
                         ),
                         child: const Text('Payer maintenant'),
+                      ),
+                    ),
+                  ],
+                  if (canJoinTeleFromMap(appt)) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: JoinTeleButton(
+                        meetingUrl: appt['meeting_url']?.toString(),
                       ),
                     ),
                   ],

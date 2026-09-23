@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../widgets/metric_card.dart';
-import '../main.dart';
+import 'login_page.dart';
 import 'patient/patient_navigation.dart';
 import 'medecin/medecin_navigation.dart';
 
@@ -112,7 +112,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         } else if (widget.role == User.rolePatient) {
           destination = const PatientNavigation();
         } else {
-          destination = const MainNavigation();
+          destination = const LoginPage();
         }
 
         Navigator.of(context).pushAndRemoveUntil(

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../config/app_config.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
 import '../../services/medecin_api_service.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
+import '../notifications_page.dart';
 import '../settings_page.dart';
 import 'medecin_ui.dart';
 
@@ -29,6 +32,8 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
   late TextEditingController _biographieController;
   late TextEditingController _disponibiliteController;
   String? _email;
+  String? _photoUrl;
+  bool _uploadingPhoto = false;
 
   @override
   void initState() {
@@ -39,6 +44,7 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
     _hopitalController = TextEditingController();
     _biographieController = TextEditingController();
     _disponibiliteController = TextEditingController();
+    _photoUrl = AuthService.instance.currentUser?.profileImageUrl;
     _loadProfile();
   }
 
@@ -61,6 +67,10 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
     _biographieController.text = p.biographie ?? '';
     _disponibiliteController.text = p.disponibilite ?? '';
     _email = p.email;
+    if (p.photoUrl != null && p.photoUrl!.isNotEmpty) {
+      _photoUrl = _abs(p.photoUrl);
+      AuthService.instance.updateProfileImageUrl(_photoUrl);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -123,6 +133,68 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
     );
   }
 
+  String _abs(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    final base = AppConfig.baseUrl.replaceAll('/api', '');
+    return path.startsWith('/') ? '$base$path' : '$base/$path';
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Caméra'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Galerie'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final file = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (file == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final url = await _api.uploadPhoto(file.path);
+      final abs = _abs(url);
+      AuthService.instance.updateProfileImageUrl(abs);
+      if (mounted) {
+        setState(() => _photoUrl = abs);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Photo mise à jour'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -149,27 +221,74 @@ class _MedecinProfilePageState extends State<MedecinProfilePage> {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                   child: Column(
                     children: [
-                      // Bouton refresh en haut à droite
                       Align(
                         alignment: Alignment.centerRight,
-                        child: IconButton(
-                          icon: const Icon(Icons.refresh_rounded,
-                              color: Colors.white70),
-                          tooltip: 'Actualiser',
-                          onPressed: _loadProfile,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.notifications_outlined,
+                                  color: Colors.white70),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const NotificationsPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh_rounded,
+                                  color: Colors.white70),
+                              tooltip: 'Actualiser',
+                              onPressed: _loadProfile,
+                            ),
+                          ],
                         ),
                       ),
-                      DoctorAvatar(
-                        name: _nomController.text.isEmpty ? 'Dr' : _nomController.text,
-                        radius: 40,
-                        background: Colors.white,
-                        foreground: AppColors.primary,
-                        imageUrl: doctorPhotoUrl({
-                          'nom': _nomController.text.isEmpty
-                              ? 'Dr'
-                              : _nomController.text,
-                          'photo_url': AuthService.instance.currentUser?.profileImageUrl,
-                        }),
+                      GestureDetector(
+                        onTap: _uploadingPhoto ? null : _pickPhoto,
+                        child: Stack(
+                          children: [
+                            DoctorAvatar(
+                              name: _nomController.text.isEmpty
+                                  ? 'Dr'
+                                  : _nomController.text,
+                              radius: 40,
+                              background: Colors.white,
+                              foreground: AppColors.primary,
+                              imageUrl: doctorPhotoUrl({
+                                'nom': _nomController.text.isEmpty
+                                    ? 'Dr'
+                                    : _nomController.text,
+                                'photo_url': _photoUrl ??
+                                    AuthService
+                                        .instance.currentUser?.profileImageUrl,
+                              }),
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: _uploadingPhoto
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.camera_alt,
+                                        size: 16, color: AppColors.primary),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(

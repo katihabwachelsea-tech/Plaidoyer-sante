@@ -116,4 +116,23 @@ class PatientApiService {
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
   }
+
+  /// POST /api/patient/profile/photo (multipart)
+  Future<String> uploadPhoto(String filePath) async {
+    final url = '$baseUrl/patient/profile/photo';
+    final token = await _storage.read(key: 'jwt_token');
+    final request = http.MultipartRequest('POST', Uri.parse(url));
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Accept'] = 'application/json';
+    request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+    ApiLogger.request(method: 'POST', url: url, headers: request.headers);
+    final streamed = await request.send().timeout(_timeout);
+    final response = await http.Response.fromStream(streamed);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response, url);
+    final data = _decode(response);
+    return (data['photo_url'] ?? '').toString();
+  }
 }

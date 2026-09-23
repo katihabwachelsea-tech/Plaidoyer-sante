@@ -32,8 +32,9 @@ class ApiService {
 
   // Vérifier la connexion internet
   static Future<bool> _hasInternetConnection() async {
-    var connectivityResult = await Connectivity().checkConnectivity();
-    return connectivityResult != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return results.isNotEmpty &&
+        !results.every((r) => r == ConnectivityResult.none);
   }
 
   // Méthode générique pour les requêtes GET

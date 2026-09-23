@@ -26,8 +26,9 @@ class SyncServiceHybrid {
   bool get wasOnline => _lastOnline;
 
   Future<bool> isOnline() async {
-    final result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return results.isNotEmpty &&
+        !results.every((r) => r == ConnectivityResult.none);
   }
 
   Future<void> _ensureAuthToken() async {

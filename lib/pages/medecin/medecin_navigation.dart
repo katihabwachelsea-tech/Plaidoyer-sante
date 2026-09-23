@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/metric_card.dart';
+import '../../widgets/notification_bell.dart';
 import 'medecin_appointments_page.dart';
 import 'medecin_home_page.dart';
 import 'medecin_profile_page.dart';
@@ -32,7 +33,19 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      // La cloche de notifs flotte au-dessus du contenu via un Stack
+      body: Stack(
+        children: [
+          IndexedStack(index: _currentIndex, children: _pages),
+          // Cloche positionnée en haut à droite uniquement sur Accueil et RDV
+          if (_currentIndex == 0 || _currentIndex == 1)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 4,
+              child: NotificationBell(),
+            ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _openTab,

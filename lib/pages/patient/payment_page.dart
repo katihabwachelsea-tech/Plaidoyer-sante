@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../services/local_reminder_service.dart';
 import '../../services/patient_api_service.dart';
 import '../../widgets/metric_card.dart';
 
@@ -99,6 +100,20 @@ class _PaymentPageState extends State<PaymentPage> {
         };
         _paying = false;
       });
+
+      // Rappels locaux J-1 / H-2
+      try {
+        final data = result['data'];
+        final raw = (data is Map ? data['date_rdv'] : null) ??
+            widget.appointment['date_rdv'];
+        final dt = DateTime.parse(raw.toString().replaceFirst(' ', 'T'));
+        await LocalReminderService.instance.scheduleForAppointment(
+          appointmentId: _appointmentId,
+          dateRdv: dt,
+          title: 'RDV $_doctorName',
+          body: '$_serviceName · ${_dateLabel}',
+        );
+      } catch (_) {}
     } catch (e) {
       if (mounted) {
         setState(() => _paying = false);

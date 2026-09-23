@@ -8,14 +8,15 @@ class AIChatService {
   static final AIChatService instance = AIChatService._internal();
   AIChatService._internal();
 
-  // 🔑 MÊME CLÉ QUE AI_SERVICE
-  // 1. Déclarez une chaîne de remplissage claire (que l'utilisateur doit remplacer)
-  static const String _PLACEHOLDER_KEY =
-      'AIzaSyA9KlGdCICCiPJS9YAHu_8P2JXXix_vUQw';// j'ai changé ici  
+  // Clé Gemini : passer --dart-define=GEMINI_API_KEY=votre_cle
+  // Fallback démo si non fournie (à remplacer en prod).
+  static const String _PLACEHOLDER_KEY = 'YOUR_GEMINI_API_KEY';
+  static const String _apiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: 'AIzaSyBl_pn4qPsGPf-JBPt68ix3l5_cuVeks4s',
+  );
 
-  // 2. Utilisez la chaîne de remplissage pour la clé déclarée (qui doit être remplacée par l'utilisateur)
-  static const String _apiKey =
-      'AIzaSyBl_pn4qPsGPf-JBPt68ix3l5_cuVeks4s'; // La nouvelle clé !
+  bool get hasApiKey => _apiKey.isNotEmpty && _apiKey != _PLACEHOLDER_KEY;
 
   // late final GenerativeModel _model;
   GenerativeModel? _model; // MODIFIÉ : Rendu optionnel
