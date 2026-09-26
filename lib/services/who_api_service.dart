@@ -1,10 +1,9 @@
-// lib/services/who_api_service.dart
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/country_stats.dart';
 import '../models/patient.dart';
+import 'api_logger.dart';
 import 'db_service.dart'; // 💡 AJOUTEZ CET IMPORT
 
 class WHOApiService {
@@ -76,8 +75,8 @@ class WHOApiService {
           .timeout(const Duration(seconds: 15));
 
       return response.statusCode == 200;
-    } catch (e) {
-      print('Erreur de connexion: $e');
+    } catch (e, st) {
+      ApiLogger.error(url: _baseUrl, error: e, stackTrace: st);
       return false;
     }
   }
@@ -100,27 +99,22 @@ class WHOApiService {
   }) async {
     try {
       if (!await hasInternetConnection()) {
-        print('Pas de connexion internet - retour de données de test');
+        ApiLogger.fcm('WHO API — pas de connexion, données de test utilisées');
         return _getTestData();
       }
 
       final countryFilter = countries
           .map((c) => "SpatialDim eq '$c'")
           .join(' or ');
-      //  MODIFICATION CLÉ : Ajouter la condition de filtre pour Dim1 si fournie
       String dimensionFilter = '';
       if (whoDimensionFilter != null && whoDimensionFilter.isNotEmpty) {
         dimensionFilter = " and Dim1 eq '$whoDimensionFilter'";
       }
 
-      //  MODIFICATION 1 : Utiliser l'indicateur plus fiable NCD_MORT_CANCER
       final filter = '($countryFilter$dimensionFilter)';
       final url = '$_baseUrl/NCDMORT3070?\$filter=$filter';
-      // final url = '$_baseUrl/NCD_MORT_CANCER?\$filter=($countryFilter)';
 
-      // final url = '$_baseUrl/NCDMORT3070?\$filter=($countryFilter)';
-      print('Requête API WHO: $url');
-
+      ApiLogger.request(method: 'GET', url: url);
       final response = await http
           .get(
             Uri.parse(url),
@@ -130,14 +124,13 @@ class WHOApiService {
             },
           )
           .timeout(const Duration(seconds: 30));
-
-      print('Status code: ${response.statusCode}');
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         final List<dynamic> values = data['value'] ?? [];
 
-        print('Nombre de résultats bruts: ${values.length}');
+        ApiLogger.fcm('WHO — ${values.length} résultats bruts reçus');
 
         // if (values.isEmpty) {
         //   print('Aucune donnée retournée - utilisation de données de test');
@@ -164,7 +157,7 @@ class WHOApiService {
               ),
             );
           } catch (e) {
-            print('Erreur parsing item: $e');
+            ApiLogger.fcm('WHO — erreur parsing item: $e');
           }
         }
 
@@ -180,29 +173,21 @@ class WHOApiService {
         // Si l'année la plus récente est trouvée (et que ce n'est pas 0)
         List<CountryStats> filteredStats;
         if (maxYear > 0) {
-          // Filtrer pour ne garder que cette année
           filteredStats = allStats
               .where((stat) => stat.year == maxYear)
               .toList();
-          print(
-            '✅ Filtrage appliqué : ${filteredStats.length} données de l\'année $maxYear conservées.',
-          );
+          ApiLogger.fcm('WHO — ${filteredStats.length} données année $maxYear conservées');
         } else {
-          // Si aucune année n'est trouvée, utiliser toutes les données converties
           filteredStats = allStats;
-          print(
-            '⚠️ Aucune année trouvée pour le filtrage, ${filteredStats.length} données conservées.',
-          );
+          ApiLogger.fcm('WHO — aucune année trouvée, ${filteredStats.length} données conservées');
         }
 
-        // 🎯 MODIFICATION 3 : Retourner les données FILTRÉES
         return filteredStats.isEmpty ? _getTestData() : filteredStats;
       } else {
-        print('Erreur API WHO: ${response.statusCode}');
         return _getTestData();
       }
-    } catch (e) {
-      print('Exception lors de la récupération des données WHO: $e');
+    } catch (e, st) {
+      ApiLogger.error(url: '$_baseUrl/NCDMORT3070', error: e, stackTrace: st);
       return _getTestData();
     }
   }
@@ -332,35 +317,24 @@ class WHOApiService {
           'Erreur récupération indicateurs: ${response.statusCode}',
         );
       }
-    } catch (e) {
-      print('Erreur indicateurs: $e');
+    } catch (e, st) {
+      ApiLogger.error(url: '$_baseUrl/indicators', error: e, stackTrace: st);
       return [];
     }
   }
 
-  // 💡 NOUVELLE MÉTHODE : Synchronisation et Sauvegarde Centralisée
-  /// Télécharge les stats de l'OMS (WHO) et les sauvegarde dans la DB locale.
-  /// Cette méthode est appelée par StatisticsPageState.
   Future<void> syncAndSaveCancerStats() async {
-    print('🔄 WHOApiService: Démarrage de la synchronisation...');
-
+    ApiLogger.fcm('WHO — Démarrage synchronisation');
     try {
-      // 1. Récupération des données (téléchargement ou données de test)
       final List<CountryStats> retrievedStats = await getCancerStatsByCountry();
       if (retrievedStats.isNotEmpty) {
-        // 2. Sauvegarde des données via le DatabaseService
         await DatabaseService.instance.saveCountryStats(retrievedStats);
-        print(
-          '✅ WHOApiService: ${retrievedStats.length} statistiques sauvegardées localement.',
-        );
+        ApiLogger.fcm('WHO — ${retrievedStats.length} stats sauvegardées');
       } else {
-        print(
-          '⚠️ WHOApiService: Aucune statistique récupérée pour la sauvegarde.',
-        );
+        ApiLogger.fcm('WHO — aucune statistique récupérée');
       }
-    } catch (e) {
-      print('❌ WHOApiService: Erreur fatale lors de la synchronisation: $e');
-      // On peut choisir d'ignorer ou de relancer une erreur plus tard
+    } catch (e, st) {
+      ApiLogger.error(url: '$_baseUrl/NCDMORT3070', error: e, stackTrace: st);
     }
   }
 }

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import '../config/app_config.dart';
+import '../services/api_logger.dart';
 import '../widgets/metric_card.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -33,13 +34,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
     setState(() { _loading = true; _error = null; });
     try {
       final token = await _token();
+      final url = '${AppConfig.baseUrl}/notifications';
+      final headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+      ApiLogger.request(method: 'GET', url: url, headers: headers);
       final res = await http.get(
-        Uri.parse('${AppConfig.baseUrl}/notifications'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse(url),
+        headers: headers,
       ).timeout(AppConfig.defaultTimeout);
+      ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
       final data = jsonDecode(res.body);
       if (res.statusCode == 200) {
         if (mounted) {
@@ -61,25 +66,33 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _markAllRead() async {
     final token = await _token();
-    await http.post(
-      Uri.parse('${AppConfig.baseUrl}/notifications/read-all'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+    final url = '${AppConfig.baseUrl}/notifications/read-all';
+    final headers = {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
     ).timeout(AppConfig.shortTimeout);
+    ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
     await _load();
   }
 
   Future<void> _markRead(int id) async {
     final token = await _token();
-    await http.post(
-      Uri.parse('${AppConfig.baseUrl}/notifications/$id/read'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+    final url = '${AppConfig.baseUrl}/notifications/$id/read';
+    final headers = {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
     ).timeout(AppConfig.shortTimeout);
+    ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
   }
 
   @override

@@ -37,8 +37,10 @@ class NotificationApiService {
   Future<int> unreadCount() async {
     final url = '${AppConfig.baseUrl}/notifications/unread-count';
     final headers = await _headers();
+    ApiLogger.request(method: 'GET', url: url, headers: headers);
     final response =
         await http.get(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
     if (response.statusCode >= 300) return 0;
     final data = jsonDecode(response.body);
     return data['count'] is int
@@ -49,12 +51,16 @@ class NotificationApiService {
   Future<void> markRead(int id) async {
     final url = '${AppConfig.baseUrl}/notifications/$id/read';
     final headers = await _headers();
-    await http.post(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
+    final response = await http.post(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
   }
 
   Future<void> markAllRead() async {
     final url = '${AppConfig.baseUrl}/notifications/read-all';
     final headers = await _headers();
-    await http.post(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.request(method: 'POST', url: url, headers: headers);
+    final response = await http.post(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
   }
 }

@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import '../config/app_config.dart';
 import '../pages/notifications_page.dart';
+import '../services/api_logger.dart';
 import 'metric_card.dart';
 
 class NotificationBell extends StatefulWidget {
@@ -33,18 +34,24 @@ class _NotificationBellState extends State<NotificationBell> {
     try {
       final token = await _storage.read(key: AppConfig.keyJwtToken);
       if (token == null) return;
+      final url = '${AppConfig.baseUrl}/notifications/unread-count';
+      final headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+      ApiLogger.request(method: 'GET', url: url, headers: headers);
       final res = await http.get(
-        Uri.parse('${AppConfig.baseUrl}/notifications/unread-count'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse(url),
+        headers: headers,
       ).timeout(AppConfig.shortTimeout);
+      ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (mounted) setState(() => _unread = (data['count'] as int?) ?? 0);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ApiLogger.error(url: '${AppConfig.baseUrl}/notifications/unread-count', error: e, stackTrace: st);
+    }
   }
 
   @override

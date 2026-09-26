@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
+import '../../services/api_logger.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../../config/app_config.dart';
@@ -181,16 +182,20 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
   Future<void> _loadServices() async {
     setState(() => _isLoadingServices = true);
+    final url = '$_baseUrl/patient/doctors/$_doctorId/services';
     try {
       final token = await _getToken();
+      final headers = {
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      ApiLogger.request(method: 'GET', url: url, headers: headers);
       // Services liés à CE médecin (pas tout le catalogue)
       final response = await http.get(
-        Uri.parse('$_baseUrl/patient/doctors/$_doctorId/services'),
-        headers: {
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        Uri.parse(url),
+        headers: headers,
       ).timeout(const Duration(seconds: 20));
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -202,8 +207,8 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
           if (list.length == 1) _selectService(list.first);
         }
       }
-    } catch (_) {
-      // Affiché dans l'UI
+    } catch (e, st) {
+      ApiLogger.error(url: url, error: e, stackTrace: st);
     } finally {
       if (mounted) setState(() => _isLoadingServices = false);
     }
@@ -221,15 +226,19 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
   Future<void> _loadSlots(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final url = '$_baseUrl/patient/doctors/$_doctorId/slots/$dateStr';
     try {
       final token = await _getToken();
+      final headers = {
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      ApiLogger.request(method: 'GET', url: url, headers: headers);
       final response = await http.get(
-        Uri.parse('$_baseUrl/patient/doctors/$_doctorId/slots/$dateStr'),
-        headers: {
-          'Accept': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        Uri.parse(url),
+        headers: headers,
       ).timeout(const Duration(seconds: 20));
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -240,7 +249,8 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       } else if (mounted) {
         _showError('Impossible de charger les créneaux');
       }
-    } catch (e) {
+    } catch (e, st) {
+      ApiLogger.error(url: url, error: e, stackTrace: st);
       if (mounted) _showError('Erreur : $e');
     } finally {
       if (mounted) setState(() => _isLoadingSlots = false);
@@ -375,26 +385,37 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
       if (_attachments.isEmpty) {
         // ── Pas de fichiers : JSON simple (compatible même sans migration urgence) ──
+        final url    = '$_baseUrl/patient/appointments';
+        final body   = {
+          'medecin_id': _doctorId,
+          'service_id': _selectedServiceId,
+          'date_rdv':   dateRdv,
+          'motif':      _reasonController.text.trim(),
+          'urgence':    _urgence,
+        };
+        final headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        };
+        ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
         response = await http.post(
-          Uri.parse('$_baseUrl/patient/appointments'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({
-            'medecin_id': _doctorId,
-            'service_id': _selectedServiceId,
-            'date_rdv':   dateRdv,
-            'motif':      _reasonController.text.trim(),
-            'urgence':    _urgence,
-          }),
+          Uri.parse(url),
+          headers: headers,
+          body: jsonEncode(body),
         ).timeout(const Duration(seconds: 30));
+        ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       } else {
         // ── Avec fichiers : multipart ──────────────────────────────────────────
+        final url = '$_baseUrl/patient/appointments';
+        ApiLogger.request(
+          method: 'POST',
+          url: url,
+          body: {'medecin_id': _doctorId, 'pieces_jointes': '${_attachments.length} fichier(s)'},
+        );
         final request = http.MultipartRequest(
           'POST',
-          Uri.parse('$_baseUrl/patient/appointments'),
+          Uri.parse(url),
         );
         request.headers.addAll({
           'Accept': 'application/json',
@@ -416,6 +437,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
         final streamed = await request.send()
             .timeout(const Duration(seconds: 60));
         response = await http.Response.fromStream(streamed);
+        ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
       }
       final data = jsonDecode(response.body);
 
@@ -435,7 +457,8 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       } else {
         _showError(data['message'] ?? 'Erreur lors de la réservation');
       }
-    } catch (e) {
+    } catch (e, st) {
+      ApiLogger.error(url: '$_baseUrl/patient/appointments', error: e, stackTrace: st);
       _showError('Erreur de connexion : $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

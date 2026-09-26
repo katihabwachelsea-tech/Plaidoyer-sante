@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../services/api_logger.dart';
 import '../widgets/metric_card.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -54,12 +55,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
     setState(() => _loading = true);
+    const url = '${AppConfig.baseUrl}/password/forgot';
     try {
+      final body = {'email': email};
+      ApiLogger.request(method: 'POST', url: url, body: body);
       final res = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/password/forgot'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({'email': email}),
+        body: jsonEncode(body),
       ).timeout(AppConfig.defaultTimeout);
+      ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
 
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['status'] == true) {
@@ -71,7 +76,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       } else {
         _showError(data['message'] ?? 'Erreur inconnue');
       }
-    } catch (e) {
+    } catch (e, st) {
+      ApiLogger.error(url: url, error: e, stackTrace: st);
       _showError('Erreur de connexion : $e');
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -87,12 +93,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
     setState(() => _loading = true);
+    const url = '${AppConfig.baseUrl}/password/verify-code';
     try {
+      final body = {'email': _email, 'code': code};
+      ApiLogger.request(method: 'POST', url: url, body: body);
       final res = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/password/verify-code'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({'email': _email, 'code': code}),
+        body: jsonEncode(body),
       ).timeout(AppConfig.defaultTimeout);
+      ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
 
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['status'] == true) {
@@ -103,7 +113,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       } else {
         _showError(data['message'] ?? 'Code incorrect');
       }
-    } catch (e) {
+    } catch (e, st) {
+      ApiLogger.error(url: url, error: e, stackTrace: st);
       _showError('Erreur de connexion : $e');
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -125,17 +136,21 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
     setState(() => _loading = true);
+    const url = '${AppConfig.baseUrl}/password/reset';
     try {
+      final body = {
+        'email':                 _email,
+        'reset_token':           _resetToken,
+        'password':              pass,
+        'password_confirmation': confirm,
+      };
+      ApiLogger.request(method: 'POST', url: url, body: body);
       final res = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/password/reset'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({
-          'email':                 _email,
-          'reset_token':           _resetToken,
-          'password':              pass,
-          'password_confirmation': confirm,
-        }),
+        body: jsonEncode(body),
       ).timeout(AppConfig.defaultTimeout);
+      ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
 
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['status'] == true) {
@@ -148,7 +163,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       } else {
         _showError(data['message'] ?? 'Erreur');
       }
-    } catch (e) {
+    } catch (e, st) {
+      ApiLogger.error(url: url, error: e, stackTrace: st);
       _showError('Erreur de connexion : $e');
     } finally {
       if (mounted) setState(() => _loading = false);

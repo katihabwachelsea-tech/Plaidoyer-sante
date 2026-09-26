@@ -13,6 +13,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import 'api_logger.dart';
 
 // Handler background — doit être une fonction top-level
 @pragma('vm:entry-point')
@@ -107,18 +108,22 @@ class PushNotificationService {
   Future<void> _sendTokenToServer(String token) async {
     final jwt = await _storage.read(key: AppConfig.keyJwtToken);
     if (jwt == null) return;
+    final url = '${AppConfig.baseUrl}/device-token';
+    final body = {'token': token, 'platform': 'android'};
     try {
-      await http.post(
-        Uri.parse('${AppConfig.baseUrl}/device-token'),
+      ApiLogger.request(method: 'POST', url: url, body: body);
+      final response = await http.post(
+        Uri.parse(url),
         headers: {
           'Content-Type':  'application/json',
           'Accept':        'application/json',
           'Authorization': 'Bearer $jwt',
         },
-        body: jsonEncode({'token': token, 'platform': 'android'}),
+        body: jsonEncode(body),
       ).timeout(AppConfig.shortTimeout);
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
     } catch (e) {
-      debugPrint('FCM: erreur envoi token: $e');
+      ApiLogger.error(url: url, error: e);
     }
   }
 
@@ -127,9 +132,11 @@ class PushNotificationService {
     final jwt   = await _storage.read(key: AppConfig.keyJwtToken);
     final token = await _messaging.getToken();
     if (jwt == null || token == null) return;
+    final url = '${AppConfig.baseUrl}/device-token';
     try {
-      await http.delete(
-        Uri.parse('${AppConfig.baseUrl}/device-token'),
+      ApiLogger.request(method: 'DELETE', url: url);
+      final response = await http.delete(
+        Uri.parse(url),
         headers: {
           'Content-Type':  'application/json',
           'Accept':        'application/json',
@@ -137,7 +144,10 @@ class PushNotificationService {
         },
         body: jsonEncode({'token': token}),
       ).timeout(AppConfig.shortTimeout);
-    } catch (_) {}
+      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    } catch (e) {
+      ApiLogger.error(url: url, error: e);
+    }
   }
 
   // ── Foreground — afficher notification locale ──────────────────────
