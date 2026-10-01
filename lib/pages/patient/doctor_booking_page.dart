@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -9,7 +9,6 @@ import '../../services/api_logger.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../../config/app_config.dart';
-import 'payment_page.dart';
 
 class DoctorBookingPage extends StatefulWidget {
   final Map<String, dynamic> doctor;
@@ -109,18 +108,54 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
   // ── Pièces jointes ──────────────────────────────────────────────────
 
-  Future<void> _pickImage(ImageSource source) async {
+  /// Galerie : multi-sélection jusqu'à (5 - déjà ajoutées)
+  Future<void> _pickFromGallery() async {
+    final remaining = 5 - _attachments.length;
+    if (remaining <= 0) {
+      _showError('Maximum 5 pièces jointes');
+      return;
+    }
+    try {
+      final picked = await _picker.pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 1920,
+      );
+      if (picked.isNotEmpty && mounted) {
+        final toAdd = picked.take(remaining).map((x) => File(x.path)).toList();
+        setState(() => _attachments.addAll(toAdd));
+        if (picked.length > remaining) {
+          _showError('Seules $remaining photo(s) ajoutée(s) — maximum 5 au total');
+        }
+      }
+    } catch (e) {
+      _showError('Impossible d\'ouvrir la galerie : $e');
+    }
+  }
+
+  /// Caméra : une seule photo à la fois
+  Future<void> _pickFromCamera() async {
     if (_attachments.length >= 5) {
       _showError('Maximum 5 pièces jointes');
       return;
     }
-    final picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 1920,
-    );
-    if (picked != null && mounted) {
-      setState(() => _attachments.add(File(picked.path)));
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1920,
+      );
+      if (picked != null && mounted) {
+        setState(() => _attachments.add(File(picked.path)));
+      }
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('camera_access_denied') ||
+          msg.contains('permission') ||
+          msg.contains('denied')) {
+        _showError('Permission caméra refusée. Activez-la dans les paramètres.');
+      } else {
+        _showError('Impossible d\'ouvrir la caméra : $e');
+      }
     }
   }
 
@@ -141,9 +176,13 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                 leading: const Icon(Icons.photo_library_rounded,
                     color: AppColors.primary),
                 title: const Text('Choisir depuis la galerie'),
+                subtitle: Text(
+                  '${5 - _attachments.length} photo(s) restante(s)',
+                  style: const TextStyle(fontSize: 12),
+                ),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
+                  _pickFromGallery();
                 },
               ),
               ListTile(
@@ -152,7 +191,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                 title: const Text('Prendre une photo'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
+                  _pickFromCamera();
                 },
               ),
             ],
@@ -346,7 +385,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Le rendez-vous reste en attente jusqu’au paiement.',
+                'La demande sera envoyee au medecin pour validation. Vous pourrez payer apres son acceptation.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 18),
@@ -443,17 +482,30 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
 
       if (response.statusCode == 201 && data['status'] == true) {
         if (!mounted) return;
-        final created = data['data'];
-        if (created is Map) {
-          await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => PaymentPage(
-                appointment: Map<String, dynamic>.from(created),
+        // ✅ RDV créé en attente — pas de paiement immédiat.
+        // Le patient paiera seulement après acceptation du médecin.
+        if (mounted) {
+          Navigator.pop(context, true); // Ferme DoctorBookingPage
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded,
+                      color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Demande envoyée ! Vous serez notifié quand le médecin l\'accepte.',
+                    ),
+                  ),
+                ],
               ),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 5),
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
-        if (mounted) Navigator.pop(context, true);
       } else {
         _showError(data['message'] ?? 'Erreur lors de la réservation');
       }

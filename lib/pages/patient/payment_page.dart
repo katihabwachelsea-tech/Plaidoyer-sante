@@ -124,15 +124,14 @@ class _PaymentPageState extends State<PaymentPage> {
           body:          '$_serviceName · $_dateLabel',
         );
 
-        // Sync agenda téléphone silencieuse
+        // Sync agenda téléphone — ouvre le calendrier natif
         unawaited(
           CalendarSyncService.instance.addAppointmentToCalendar(
-            appointmentId:     _appointmentId,
             dateRdv:           dt,
             doctorName:        _doctorName,
             serviceName:       _serviceName,
             motif:             widget.appointment['motif']?.toString() ?? '',
-            meetingUrl:        meetingUrl,
+            location:          meetingUrl,
             isTeleconsultation: isTele,
           ),
         );
