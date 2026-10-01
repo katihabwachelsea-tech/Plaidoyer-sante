@@ -203,6 +203,41 @@ class MedecinApiService {
     _checkStatus(response);
   }
 
+  /// PUT /api/medecin/creneaux/{id} — modifier heure début/fin
+  Future<Creneau> updateCreneau(int id, {
+    String? heureDebut,
+    String? heureFin,
+  }) async {
+    final url = '$baseUrl/medecin/creneaux/$id';
+    final headers = await _headers();
+    final body = <String, dynamic>{};
+    if (heureDebut != null) body['heure_debut'] = heureDebut;
+    if (heureFin != null) body['heure_fin'] = heureFin;
+    ApiLogger.request(method: 'PUT', url: url, headers: headers, body: body);
+    final response = await http
+        .put(Uri.parse(url), headers: headers, body: jsonEncode(body))
+        .timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+    final data = _decode(response);
+    return Creneau.fromApiMap(Map<String, dynamic>.from(data['data'] as Map));
+  }
+
+  /// POST /api/medecin/creneaux/bulk — créer plusieurs créneaux en une fois
+  Future<Map<String, dynamic>> bulkCreateCreneaux(
+      List<Map<String, String>> creneaux) async {
+    final url = '$baseUrl/medecin/creneaux/bulk';
+    final headers = await _headers();
+    final body = {'creneaux': creneaux};
+    ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
+    final response = await http
+        .post(Uri.parse(url), headers: headers, body: jsonEncode(body))
+        .timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+    return Map<String, dynamic>.from(_decode(response) as Map);
+  }
+
   /// POST /api/medecin/appointments/{id}/accept
   Future<void> acceptAppointment(int id) async {
     final url = '$baseUrl/medecin/appointments/$id/accept';
