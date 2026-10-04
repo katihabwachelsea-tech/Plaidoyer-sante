@@ -3,10 +3,11 @@
 // Icône cloche avec badge de notifications non lues.
 // À placer dans l'AppBar ou le header de n'importe quel écran.
 
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'dart:convert';
 import '../config/app_config.dart';
 import '../pages/notifications_page.dart';
 import '../services/api_logger.dart';
@@ -23,11 +24,23 @@ class NotificationBell extends StatefulWidget {
 class _NotificationBellState extends State<NotificationBell> {
   int _unread = 0;
   static const _storage = FlutterSecureStorage();
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadCount();
+    // Rafraîchit le badge toutes les 30 secondes en arrière-plan.
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadCount(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadCount() async {
@@ -72,7 +85,8 @@ class _NotificationBellState extends State<NotificationBell> {
               MaterialPageRoute(
                   builder: (_) => const NotificationsPage()),
             );
-            _loadCount(); // Rafraîchir après retour
+            // Rafraîchir le badge immédiatement au retour
+            if (mounted) _loadCount();
           },
         ),
         if (_unread > 0)

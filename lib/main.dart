@@ -92,12 +92,15 @@ class _AuthCheckState extends State<AuthCheck> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // Toujours démarrer sur la page de connexion — l'utilisateur doit se connecter à chaque lancement
+    final authService = AuthService.instance;
+    final loggedIn = await authService.isLoggedIn();
+    final role = loggedIn ? await authService.getStoredRole() : null;
+
     if (mounted) {
       setState(() {
-        _isLoggedIn  = false;
-        _userRole    = null;
-        _isLoading   = false;
+        _isLoggedIn = loggedIn;
+        _userRole   = role;
+        _isLoading  = false;
       });
     }
   }

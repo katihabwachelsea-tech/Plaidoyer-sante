@@ -610,30 +610,48 @@ class _PendingCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Date
+          // Date + service — en colonne pour éviter l'overflow
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.ice,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.calendar_today_rounded,
-                    size: 14, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text(date,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded,
+                        size: 14, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        date,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
                 if (appointment.serviceName != null) ...[
-                  const Spacer(),
-                  Text(
-                    appointment.serviceName!,
-                    style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12),
-                  ),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.medical_services_rounded,
+                        size: 14, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        appointment.serviceName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12),
+                      ),
+                    ),
+                  ]),
                 ],
               ],
             ),

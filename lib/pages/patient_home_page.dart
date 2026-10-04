@@ -86,7 +86,7 @@ class _PatientHomePageState extends State<PatientHomePage> {
                 final dt =
                     DateTime.parse(rawDate.replaceFirst(' ', 'T'));
                 return dt.isAfter(DateTime.now()) &&
-                    (statut == 'En_attente' || statut == 'Confirme');
+                    (statut == 'En_attente' || statut == 'Accepte' || statut == 'Confirme');
               } catch (_) {
                 return false;
               }
@@ -552,7 +552,9 @@ class _PatientHomePageState extends State<PatientHomePage> {
                 serviceObj?['nom_service'] ?? appt['motif'] ?? 'Consultation';
 
             final statut = (appt['statut'] as String?) ?? '';
-            final isConfirme = statut == 'Confirme';
+            final isConfirme  = statut == 'Confirme';
+            final isAccepte   = statut == 'Accepte';
+            final isEnAttente = statut == 'En_attente';
 
             // Format date — Laravel retourne date_rdv (datetime)
             final rawDate =
@@ -610,21 +612,31 @@ class _PatientHomePageState extends State<PatientHomePage> {
                         decoration: BoxDecoration(
                           color: isConfirme
                               ? AppColors.success.withValues(alpha: 0.12)
-                              : AppColors.warning.withValues(alpha: 0.16),
+                              : isAccepte
+                                  ? AppColors.info.withValues(alpha: 0.12)
+                                  : AppColors.warning.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          isConfirme ? 'Confirmé' : 'À payer',
+                          isConfirme
+                              ? 'Confirmé'
+                              : isAccepte
+                                  ? 'Accepté — À payer'
+                                  : 'En attente',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: isConfirme ? AppColors.success : AppColors.warning,
+                            color: isConfirme
+                                ? AppColors.success
+                                : isAccepte
+                                    ? AppColors.info
+                                    : AppColors.warning,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  if (!isConfirme) ...[
+                  if (isAccepte) ...[
                     const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,

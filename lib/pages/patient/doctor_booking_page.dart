@@ -263,6 +263,9 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
     await _loadSlots(date);
   }
 
+  // Jours ayant au moins un créneau disponible (pour griser le strip)
+  final Set<String> _daysWithSlots = {};
+
   Future<void> _loadSlots(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final url = '$_baseUrl/patient/doctors/$_doctorId/slots/$dateStr';
@@ -284,7 +287,17 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
         final list = (data['data'] as List<dynamic>? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
-        if (mounted) setState(() => _slots = list);
+        if (mounted) {
+          setState(() {
+            _slots = list;
+            // Marquer ce jour comme ayant des créneaux si au moins un est disponible
+            if (list.any((s) => s['available'] == true)) {
+              _daysWithSlots.add(dateStr);
+            } else {
+              _daysWithSlots.remove(dateStr);
+            }
+          });
+        }
       } else if (mounted) {
         _showError('Impossible de charger les créneaux');
       }
@@ -485,8 +498,11 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
         // ✅ RDV créé en attente — pas de paiement immédiat.
         // Le patient paiera seulement après acceptation du médecin.
         if (mounted) {
+          // Capturer le messenger AVANT le pop pour éviter le crash
+          // "setState after dispose" quand le widget est démonté.
+          final messenger = ScaffoldMessenger.of(context);
           Navigator.pop(context, true); // Ferme DoctorBookingPage
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Row(
                 children: [
@@ -811,17 +827,25 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final day = _days[index];
+          final dateStr = DateFormat('yyyy-MM-dd').format(day);
           final selected = _selectedDate != null &&
-              _selectedDate!.year == day.year &&
+              _selectedDate!.year  == day.year  &&
               _selectedDate!.month == day.month &&
-              _selectedDate!.day == day.day;
+              _selectedDate!.day   == day.day;
+          // Un jour est "connu indisponible" seulement si on l'a déjà chargé
+          // et qu'aucun slot n'était disponible.  On ne bloque pas les jours
+          // non encore chargés.
+          final hasSlots = _daysWithSlots.contains(dateStr);
+
           return InkWell(
             onTap: () => _selectDay(day),
             borderRadius: BorderRadius.circular(14),
             child: Container(
               width: 64,
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary : AppColors.cardBackground,
+                color: selected
+                    ? AppColors.primary
+                    : AppColors.cardBackground,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected ? AppColors.primary : AppColors.border,
@@ -834,7 +858,9 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                     _dayLabel(day),
                     style: TextStyle(
                       fontSize: 12,
-                      color: selected ? Colors.white70 : AppColors.textSecondary,
+                      color: selected
+                          ? Colors.white70
+                          : AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -843,7 +869,22 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : AppColors.textPrimary,
+                      color: selected
+                          ? Colors.white
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  // Point vert = créneaux disponibles connus
+                  Container(
+                    width: 6, height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : hasSlots
+                              ? AppColors.success
+                              : Colors.transparent,
                     ),
                   ),
                 ],
@@ -855,6 +896,7 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
     );
   }
 
+
   Widget _buildSlotPicker() {
     if (_isLoadingSlots) {
       return const Padding(
@@ -863,38 +905,87 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
       );
     }
 
-    final available = _slots.where((s) => s['available'] == true).toList();
-    if (_slots.isEmpty || available.isEmpty) {
+    // Aucun créneau du tout (le médecin n'a pas configuré ce jour)
+    if (_slots.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.12),
+          color: AppColors.background,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
         ),
-        child: const Text('Aucun créneau libre ce jour. Choisissez une autre date.'),
+        child: Row(children: [
+          const Icon(Icons.event_busy_rounded,
+              color: AppColors.textLight, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Ce jour n\'est pas disponible. Choisissez une autre date.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ),
+        ]),
       );
     }
 
+    // Style Doctolib : tous les créneaux visibles —
+    // disponibles (bleu/vert) + pris (grisés non-sélectionnables)
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: available.map((slot) {
-        final time = slot['time'] as String;
-        final selected = _selectedTime == time;
-        return ChoiceChip(
-          label: Text(time),
-          selected: selected,
-          showCheckmark: false,
-          selectedColor: AppColors.success,
-          backgroundColor: AppColors.success.withValues(alpha: 0.10),
-          labelStyle: TextStyle(
-            color: selected ? Colors.white : AppColors.success,
-            fontWeight: FontWeight.w700,
+      children: _slots.map((slot) {
+        final time      = slot['time'] as String;
+        final isAvail   = slot['available'] == true;
+        final isSelected = _selectedTime == time;
+
+        if (!isAvail) {
+          // Créneau déjà pris — grisé, non cliquable (style Doctolib)
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text(
+              time,
+              style: const TextStyle(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                decoration: TextDecoration.lineThrough,
+              ),
+            ),
+          );
+        }
+
+        // Créneau disponible
+        return GestureDetector(
+          onTap: () => setState(() => _selectedTime = time),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary
+                  : AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.primary.withValues(alpha: 0.3),
+                width: isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Text(
+              time,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
           ),
-          side: BorderSide(
-            color: selected ? AppColors.success : AppColors.success.withValues(alpha: 0.35),
-          ),
-          onSelected: (_) => setState(() => _selectedTime = time),
         );
       }).toList(),
     );

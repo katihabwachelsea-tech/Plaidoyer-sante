@@ -190,7 +190,7 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
           isFuture = dt.isAfter(DateTime.now());
         } catch (_) {}
 
-        final canPay = (statut == 'En_attente' || statut == 'Accepte') && isFuture;
+        final canPay = statut == 'Accepte' && isFuture;
         final canCancel = (statut == 'En_attente' || statut == 'Accepte' || statut == 'Confirme') && isFuture;
         final canJoin = canJoinTeleFromMap(appt);
         final mode = ((appt['service'] as Map?)?['mode'] ?? '').toString();

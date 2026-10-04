@@ -165,7 +165,10 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _passwordController.text,
         fullName: _fullNameController.text.trim(),
         role: _selectedRole,
-        profileImageUrl: _profileImagePath,
+        // La photo de profil s'envoie après connexion via la page Profil
+        // (upload multipart). On n'envoie pas le chemin local ici car
+        // le backend valide photo_url comme une URL HTTP valide.
+        profileImageUrl: null,
       );
 
       if (!mounted) return;
@@ -391,8 +394,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         const SizedBox(height: AppSizes.paddingS),
                         Text(
                           _profileImagePath == null
-                              ? 'Ajouter une photo de profil (Optionnel)'
-                              : 'Changer la photo',
+                              ? 'Ajouter une photo (après connexion, dans le profil)'
+                              : 'Photo sélectionnée ✓ (sera modifiable dans le profil)',
                           style: TextStyle(color: AppColors.primary),
                         ),
                       ],
