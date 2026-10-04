@@ -92,14 +92,12 @@ class _AuthCheckState extends State<AuthCheck> {
   }
 
   Future<void> _checkLoginStatus() async {
-    final authService = AuthService.instance;
-    final loggedIn = await authService.isLoggedIn();
-    final role = loggedIn ? await authService.getStoredRole() : null;
-
+    // Sécurité médicale : l'utilisateur doit se connecter à chaque
+    // ouverture de l'application. Les données de santé sont sensibles.
     if (mounted) {
       setState(() {
-        _isLoggedIn = loggedIn;
-        _userRole   = role;
+        _isLoggedIn = false;
+        _userRole   = null;
         _isLoading  = false;
       });
     }

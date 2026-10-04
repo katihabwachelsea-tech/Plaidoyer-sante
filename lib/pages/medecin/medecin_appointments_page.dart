@@ -41,9 +41,25 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     try {
       final list = await _api.getAppointments();
       if (mounted) {
+        final now = DateTime.now();
+        bool sameDay(DateTime a, DateTime b) =>
+            a.year == b.year && a.month == b.month && a.day == b.day;
+
+        // Ouvrir automatiquement sur "Aujourd'hui" si des RDV confirmés
+        // sont prévus ce jour — le médecin voit directement le bouton Consulter.
+        // Le filtre ne change que si l'utilisateur n'a pas déjà sélectionné
+        // un autre filtre manuellement (on reste sur le filtre actuel sinon).
+        final hasConfirmedToday = list.any(
+          (a) => a.isConfirme && sameDay(a.dateHeure.toLocal(), now),
+        );
+
         setState(() {
           _appointments = list;
-          _isLoading = false;
+          _isLoading    = false;
+          // Uniquement au premier chargement (filtre encore sur 'pending')
+          if (_filter == 'pending' && hasConfirmedToday) {
+            _filter = 'today';
+          }
         });
       }
     } catch (e) {
@@ -778,8 +794,8 @@ class _AppointmentCard extends StatelessWidget {
 
     // Couleur et label du badge statut
     final (badgeColor, badgeLabel) = switch (appointment.statut) {
-      'Confirme' => (AppColors.success, 'Payé'),
-      'Accepte'  => (AppColors.info, 'Accepté'),
+      'Confirme' => (AppColors.success, 'Payé — Confirmé'),
+      'Accepte'  => (AppColors.info, 'Accepté — En attente du paiement'),
       'Termine'  => (AppColors.textSecondary, 'Terminé'),
       _          => (AppColors.warning, appointment.statut),
     };
@@ -900,9 +916,37 @@ class _AppointmentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              if (appointment.isConfirme) ...[
+          // ── Bouton Consulter ou message d'état ──────────────────────────
+          if (appointment.isAccepted) ...[
+            // RDV accepté mais patient n'a pas encore payé
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded,
+                      size: 16, color: AppColors.warning),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'En attente du paiement du patient',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.warning),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (appointment.isConfirme) ...[
+            Row(
+              children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: onCancel,
@@ -910,23 +954,24 @@ class _AppointmentCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-              ],
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: canConsult ? onConsult : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    disabledBackgroundColor:
-                        AppColors.primary.withValues(alpha: 0.35),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: canConsult ? onConsult : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      disabledBackgroundColor:
+                          AppColors.primary.withValues(alpha: 0.35),
+                    ),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: Text(canConsult
+                        ? 'Commencer consultation'
+                        : 'Le jour J uniquement'),
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label:
-                      Text(canConsult ? 'Consulter' : 'Pas encore'),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
