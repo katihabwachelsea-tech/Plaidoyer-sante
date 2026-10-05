@@ -6,12 +6,13 @@ class User {
   final String fullName;
   final String? email;
   final String? telephone;
-  final String role; // 'admin', 'doctor', 'nurse', 'staff'
+  final String role;
   final String? specialization;
   final String? profileImageUrl;
   final DateTime createdAt;
   final DateTime? lastLogin;
   final bool isActive;
+  final bool isProfileCompleted;
 
   User({
     this.id,
@@ -25,6 +26,7 @@ class User {
     DateTime? createdAt,
     this.lastLogin,
     this.isActive = true,
+    this.isProfileCompleted = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   // Rôles disponibles
@@ -103,6 +105,8 @@ class User {
           : map['isActive'] is int
               ? (map['isActive'] as int) == 1
               : map['isActive'] as bool,
+      isProfileCompleted: map['is_profile_completed'] == true ||
+          map['isProfileCompleted'] == true,
     );
   }
 
@@ -122,6 +126,7 @@ class User {
     DateTime? createdAt,
     DateTime? lastLogin,
     bool? isActive,
+    bool? isProfileCompleted,
   }) {
     return User(
       id: id ?? this.id,
@@ -135,6 +140,7 @@ class User {
       createdAt: createdAt ?? this.createdAt,
       lastLogin: lastLogin ?? this.lastLogin,
       isActive: isActive ?? this.isActive,
+      isProfileCompleted: isProfileCompleted ?? this.isProfileCompleted,
     );
   }
 

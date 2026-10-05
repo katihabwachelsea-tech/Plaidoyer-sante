@@ -1,4 +1,5 @@
 // lib/pages/login_page.dart
+// lib/pages/login_page.dart
 
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
@@ -8,6 +9,7 @@ import 'patient/patient_navigation.dart';
 import 'medecin/medecin_navigation.dart';
 import '../widgets/metric_card.dart';
 import 'forgot_password_page.dart';
+import 'onboarding_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -95,7 +97,23 @@ class _LoginPageState extends State<LoginPage>
       if (!mounted) return;
 
       if (result['success']) {
-        final userRole = authService.currentUser?.role;
+        final user     = authService.currentUser;
+        final userRole = user?.role;
+
+        // Bloquer sur l'onboarding si le profil n'est pas encore complété.
+        // is_profile_completed est retourné par l'API login et stocké dans User.
+        if (user != null && !user.isProfileCompleted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnboardingPage(
+                role: userRole ?? User.rolePatient,
+              ),
+            ),
+          );
+          return;
+        }
+
+        // Profil complété → accueil selon le rôle
         if (userRole == User.rolePatient) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const PatientNavigation()),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../widgets/metric_card.dart';
@@ -30,12 +32,34 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _disponibiliteController = TextEditingController();
 
   // Contrôleurs pour le Patient
-  final _dateNaissanceController = TextEditingController();
   final _groupeSanguinController = TextEditingController();
   final _maladieController = TextEditingController();
   final _antecedentsController = TextEditingController();
 
+  // Date de naissance — DateTime natif, jamais du texte libre
+  DateTime? _dateNaissance;
+
   bool _isMedecin() => widget.role == User.roleDoctor;
+
+  /// Ouvre le calendrier natif et stocke la date sélectionnée.
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateNaissance ?? DateTime(now.year - 25),
+      firstDate: DateTime(1920),
+      lastDate: DateTime(now.year - 1, 12, 31),
+      locale: const Locale('fr', 'FR'),
+      helpText: 'Date de naissance',
+      cancelText: 'Annuler',
+      confirmText: 'Confirmer',
+      fieldLabelText: 'Date de naissance',
+      fieldHintText: 'JJ/MM/AAAA',
+    );
+    if (picked != null && mounted) {
+      setState(() => _dateNaissance = picked);
+    }
+  }
 
   @override
   void dispose() {
@@ -44,7 +68,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _hopitalController.dispose();
     _biographieController.dispose();
     _disponibiliteController.dispose();
-    _dateNaissanceController.dispose();
     _groupeSanguinController.dispose();
     _maladieController.dispose();
     _antecedentsController.dispose();
@@ -84,10 +107,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
       } else {
         result = await authService.completeProfile(
           role: widget.role,
-          dateNaissance: _dateNaissanceController.text.trim(),
-          groupeSanguin: _groupeSanguinController.text.trim(),
-          maladie: _maladieController.text.trim(),
-          antecedents: _antecedentsController.text.trim(),
+          dateNaissance: _dateNaissance != null
+              ? DateFormat('yyyy-MM-dd').format(_dateNaissance!)
+              : null,
+          groupeSanguin: _groupeSanguinController.text.trim().isEmpty
+              ? null
+              : _groupeSanguinController.text.trim(),
+          maladie: _maladieController.text.trim().isEmpty
+              ? null
+              : _maladieController.text.trim(),
+          antecedents: _antecedentsController.text.trim().isEmpty
+              ? null
+              : _antecedentsController.text.trim(),
         );
       }
 
@@ -296,17 +327,30 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                   const SizedBox(height: AppSizes.paddingM),
 
-                  TextFormField(
-                    controller: _dateNaissanceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Date de naissance',
-                      hintText: 'JJ/MM/AAAA',
-                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                  // ── Sélecteur de date — calendrier natif ─────────────
+                  GestureDetector(
+                    onTap: _isLoading ? null : _pickDate,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Date de naissance *',
+                          hintText: 'Toucher pour sélectionner',
+                          prefixIcon:
+                              const Icon(Icons.calendar_today_outlined),
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
+                        ),
+                        controller: TextEditingController(
+                          text: _dateNaissance != null
+                              ? DateFormat('dd/MM/yyyy')
+                                  .format(_dateNaissance!)
+                              : '',
+                        ),
+                        validator: (_) => _dateNaissance == null
+                            ? 'La date de naissance est requise'
+                            : null,
+                        enabled: !_isLoading,
+                      ),
                     ),
-                    keyboardType: TextInputType.datetime,
-                    textInputAction: TextInputAction.next,
-                    validator: _validateRequired,
-                    enabled: !_isLoading,
                   ),
 
                   const SizedBox(height: AppSizes.paddingM),
