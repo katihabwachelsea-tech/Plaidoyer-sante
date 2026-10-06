@@ -5,7 +5,6 @@ import '../../services/auth_service.dart';
 import '../../services/patient_api_service.dart';
 import '../../widgets/metric_card.dart';
 import '../login_page.dart';
-import '../notifications_page.dart';
 import '../settings_page.dart';
 
 class PatientProfilePage extends StatefulWidget {
@@ -173,15 +172,6 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsPage()),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.settings_rounded),
             onPressed: () {

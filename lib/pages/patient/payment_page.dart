@@ -22,6 +22,19 @@ class _PaymentPageState extends State<PaymentPage> {
   bool _paying = false;
   Map<String, dynamic>? _receipt;
 
+  /// Détecte l'opérateur depuis le numéro :
+  /// Burundi — 69/62 = Lumitel → Lumicash | 79/78/71 = Leo → Ecocash
+  static String _detectMethod(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    // Numéro local (8 chiffres) ou international (257 + 8 chiffres)
+    final local = digits.length >= 2
+        ? digits.substring(digits.length >= 11 ? 3 : 0, (digits.length >= 11 ? 3 : 0) + 2)
+        : '';
+    if (local == '69' || local == '62' || local == '68') return 'Lumicash';
+    if (local == '79' || local == '78' || local == '71' || local == '75') return 'Ecocash';
+    return 'Ecocash'; // défaut
+  }
+
   int get _appointmentId {
     final raw = widget.appointment['id'];
     if (raw is int) return raw;
@@ -65,7 +78,17 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
-    _phoneController.text = AuthService.instance.currentUser?.telephone ?? '';
+    final phone = AuthService.instance.currentUser?.telephone ?? '';
+    _phoneController.text = phone;
+    // Pré-sélectionner l'opérateur selon le numéro stocké
+    _method = _detectMethod(phone);
+    // Mettre à jour la sélection si l'utilisateur modifie le numéro
+    _phoneController.addListener(() {
+      final detected = _detectMethod(_phoneController.text);
+      if (detected != _method && mounted) {
+        setState(() => _method = detected);
+      }
+    });
   }
 
   @override
@@ -218,15 +241,10 @@ class _PaymentPageState extends State<PaymentPage> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                    labelText: 'Numéro Mobile Money',
+                    labelText: 'Numéro de téléphone',
                     hintText: '79 000 000',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Démo de soutenance : le paiement est simulé. Le rendez-vous passe à Confirmé et un reçu est généré.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
               ],
             ),

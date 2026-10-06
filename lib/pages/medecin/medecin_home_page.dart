@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
@@ -79,6 +80,111 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
     return _doctorName;
   }
 
+  Future<void> _acceptRdv(Appointment rdv) async {
+    try {
+      await _api.acceptAppointment(rdv.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Demande acceptée — le patient peut maintenant payer'),
+          backgroundColor: AppColors.success,
+        ));
+        _loadDashboard();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$e'), backgroundColor: AppColors.error));
+      }
+    }
+  }
+
+  Future<void> _refuseRdv(Appointment rdv) async {
+    final raisonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refuser cette demande ?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Patient : ${rdv.patientDisplayName}'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: raisonCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Raison (optionnel)',
+                hintText: 'Ex. Pas dans ma spécialité...',
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Refuser'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _api.refuseAppointment(rdv.id,
+          raison: raisonCtrl.text.trim().isEmpty ? null : raisonCtrl.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Demande refusée'),
+            backgroundColor: AppColors.warning));
+        _loadDashboard();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$e'), backgroundColor: AppColors.error));
+      }
+    }
+  }
+
+  void _handleTodayTile(Appointment rdv) {
+    switch (rdv.statut) {
+      case 'En_attente':
+        // Afficher bottom sheet avec Accepter / Refuser
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          builder: (_) => _PendingBottomSheet(
+            appointment: rdv,
+            onAccept: () {
+              Navigator.pop(context);
+              _acceptRdv(rdv);
+            },
+            onRefuse: () {
+              Navigator.pop(context);
+              _refuseRdv(rdv);
+            },
+          ),
+        );
+      case 'Accepte':
+        // Informer que le patient n'a pas encore payé
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('En attente du paiement du patient.'),
+          backgroundColor: AppColors.info,
+        ));
+      case 'Confirme':
+        // Ouvrir la consultation (uniquement le jour J — vérifié dans _openConsultation)
+        _openConsultation(rdv);
+      default:
+        break;
+    }
+  }
+
   Future<void> _openConsultation(Appointment rdv) async {
     if (!rdv.isToday) {
       final dateLabel = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
@@ -146,7 +252,7 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: _TodayTile(
                                     appointment: rdv,
-                                    onConsult: () => _openConsultation(rdv),
+                                    onTap: () => _handleTodayTile(rdv),
                                   ),
                                 )),
                           const SizedBox(height: 18),
@@ -353,17 +459,30 @@ class _KpiStrip extends StatelessWidget {
 
 class _TodayTile extends StatelessWidget {
   final Appointment appointment;
-  final VoidCallback onConsult;
+  final VoidCallback onTap;
 
-  const _TodayTile({required this.appointment, required this.onConsult});
+  const _TodayTile({required this.appointment, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
+
+    // Libellé et couleur du bouton selon le statut
+    final (btnLabel, btnColor) = switch (appointment.statut) {
+      'En_attente' => ('Valider', AppColors.warning),
+      'Accepte'    => ('En attente paiement', AppColors.info),
+      'Confirme'   => ('Consulter', AppColors.primary),
+      'Termine'    => ('Terminé', AppColors.textSecondary),
+      _            => ('Voir', AppColors.primary),
+    };
+    final isDisabled = appointment.statut == 'Termine' ||
+        (appointment.statut == 'Confirme' && !appointment.isToday);
+
     return MedecinCard(
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
+          // Heure
           Container(
             width: 58,
             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -381,7 +500,8 @@ class _TodayTile extends StatelessWidget {
                     fontSize: 15,
                   ),
                 ),
-                const Text('RDV', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                const Text('RDV',
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
               ],
             ),
           ),
@@ -410,13 +530,17 @@ class _TodayTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: onConsult,
+            onPressed: isDisabled ? null : onTap,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: btnColor,
+              disabledBackgroundColor: AppColors.border,
               visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
-            child: const Text('Voir'),
+            child: Text(
+              btnLabel,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -424,6 +548,151 @@ class _TodayTile extends StatelessWidget {
   }
 }
 
+// ── Bottom sheet Accept/Refus depuis l'accueil ──────────────────────────────
+class _PendingBottomSheet extends StatelessWidget {
+  final Appointment appointment;
+  final VoidCallback onAccept;
+  final VoidCallback onRefuse;
+
+  const _PendingBottomSheet({
+    required this.appointment,
+    required this.onAccept,
+    required this.onRefuse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final date = DateFormat('EEEE d MMM à HH:mm', 'fr_FR')
+        .format(appointment.dateHeure.toLocal());
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Poignée
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text('Demande de rendez-vous',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 14),
+          // Infos patient
+          Row(
+            children: [
+              DoctorAvatar(name: appointment.patientDisplayName, radius: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(appointment.patientDisplayName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(appointment.motif,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.ice,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today_rounded,
+                    size: 15, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(date,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+              ],
+            ),
+          ),
+          if (appointment.isTresUrgent || appointment.isUrgent) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: (appointment.isTresUrgent ? AppColors.error : AppColors.warning)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    appointment.isTresUrgent
+                        ? Icons.emergency_rounded
+                        : Icons.warning_amber_rounded,
+                    size: 14,
+                    color: appointment.isTresUrgent
+                        ? AppColors.error
+                        : AppColors.warning,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(appointment.urgenceLabel,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: appointment.isTresUrgent
+                              ? AppColors.error
+                              : AppColors.warning)),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onRefuse,
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text('Refuser'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: onAccept,
+                  icon: const Icon(Icons.check_rounded, size: 16),
+                  label: const Text('Accepter'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Action rapide ────────────────────────────────────────────────────────────
 class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;

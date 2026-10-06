@@ -49,7 +49,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       initialDate: _dateNaissance ?? DateTime(now.year - 25),
       firstDate: DateTime(1920),
       lastDate: DateTime(now.year - 1, 12, 31),
-      locale: const Locale('fr', 'FR'),
       helpText: 'Date de naissance',
       cancelText: 'Annuler',
       confirmText: 'Confirmer',

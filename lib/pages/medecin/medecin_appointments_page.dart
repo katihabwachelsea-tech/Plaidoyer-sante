@@ -22,8 +22,8 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   List<Appointment> _appointments = [];
   bool _isLoading = true;
   String? _error;
-  // 'pending' = En_attente, 'today', 'upcoming', 'all'
-  String _filter = 'pending';
+  // 'pending' = En_attente, 'confirme' = tous RDV payés, 'today', 'all'
+  String _filter = 'confirme';
   bool _showAll = false;
   static const int _previewCount = 5;
 
@@ -41,25 +41,9 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     try {
       final list = await _api.getAppointments();
       if (mounted) {
-        final now = DateTime.now();
-        bool sameDay(DateTime a, DateTime b) =>
-            a.year == b.year && a.month == b.month && a.day == b.day;
-
-        // Ouvrir automatiquement sur "Aujourd'hui" si des RDV confirmés
-        // sont prévus ce jour — le médecin voit directement le bouton Consulter.
-        // Le filtre ne change que si l'utilisateur n'a pas déjà sélectionné
-        // un autre filtre manuellement (on reste sur le filtre actuel sinon).
-        final hasConfirmedToday = list.any(
-          (a) => a.isConfirme && sameDay(a.dateHeure.toLocal(), now),
-        );
-
         setState(() {
           _appointments = list;
           _isLoading    = false;
-          // Uniquement au premier chargement (filtre encore sur 'pending')
-          if (_filter == 'pending' && hasConfirmedToday) {
-            _filter = 'today';
-          }
         });
       }
     } catch (e) {
@@ -75,6 +59,14 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     switch (_filter) {
       case 'pending':
         return _appointments.where((a) => a.isPending).toList();
+      // Tous les RDV payés (Confirme) triés par date croissante —
+      // bouton actif uniquement le jour J, sinon affiché grisé avec la date
+      case 'confirme':
+        final confirmed = _appointments
+            .where((a) => a.isConfirme || a.isTermine)
+            .toList()
+          ..sort((a, b) => a.dateHeure.compareTo(b.dateHeure));
+        return confirmed;
       case 'today':
         return _appointments
             .where((a) => sameDay(a.dateHeure.toLocal(), now))
@@ -292,6 +284,16 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                   child: Row(
                     children: [
                       _Chip(
+                        label: 'RDV payés',
+                        selected: _filter == 'confirme',
+                        color: AppColors.primary,
+                        onTap: () => setState(() {
+                          _filter = 'confirme';
+                          _showAll = false;
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      _Chip(
                         label: 'À valider',
                         badge: pendingCount,
                         selected: _filter == 'pending',
@@ -307,15 +309,6 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                         selected: _filter == 'today',
                         onTap: () => setState(() {
                           _filter = 'today';
-                          _showAll = false;
-                        }),
-                      ),
-                      const SizedBox(width: 8),
-                      _Chip(
-                        label: 'À venir',
-                        selected: _filter == 'upcoming',
-                        onTap: () => setState(() {
-                          _filter = 'upcoming';
                           _showAll = false;
                         }),
                       ),
@@ -365,13 +358,19 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                   child: EmptyHint(
                     icon: _filter == 'pending'
                         ? Icons.check_circle_outline_rounded
-                        : Icons.event_busy_rounded,
+                        : _filter == 'confirme'
+                            ? Icons.event_available_rounded
+                            : Icons.event_busy_rounded,
                     title: _filter == 'pending'
                         ? 'Aucune demande en attente'
-                        : 'Aucun rendez-vous ici',
+                        : _filter == 'confirme'
+                            ? 'Aucun RDV payé pour l\'instant'
+                            : 'Aucun rendez-vous ici',
                     subtitle: _filter == 'pending'
                         ? 'Toutes les demandes ont été traitées.'
-                        : 'Les RDV confirmés et payés apparaissent ici.',
+                        : _filter == 'confirme'
+                            ? 'Les RDV confirmés (payés) par les patients apparaîtront ici.'
+                            : 'Les RDV confirmés et payés apparaissent ici.',
                   ),
                 ),
               )
@@ -790,7 +789,6 @@ class _AppointmentCard extends StatelessWidget {
     final date =
         DateFormat('EEE d MMM', 'fr_FR').format(appointment.dateHeure.toLocal());
     final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
-    final canConsult = appointment.isToday && appointment.isConfirme;
 
     // Couleur et label du badge statut
     final (badgeColor, badgeLabel) = switch (appointment.statut) {
@@ -874,11 +872,30 @@ class _AppointmentCard extends StatelessWidget {
           ),
           if (!appointment.isToday && appointment.isConfirme) ...[
             const SizedBox(height: 10),
-            Text(
-              'Consultation disponible le jour du rendez-vous uniquement.',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.warning.withValues(alpha: 0.95)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.ice,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_clock_rounded,
+                      size: 15, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Consultation disponible uniquement le jour du RDV',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           if (appointment.isTeleconsultation) ...[
@@ -944,7 +961,8 @@ class _AppointmentCard extends StatelessWidget {
                 ],
               ),
             ),
-          ] else if (appointment.isConfirme) ...[
+          ] else if (appointment.isConfirme && appointment.isToday) ...[
+            // Jour J + payé → boutons Annuler + Commencer
             Row(
               children: [
                 Expanded(
@@ -957,21 +975,19 @@ class _AppointmentCard extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: FilledButton.icon(
-                    onPressed: canConsult ? onConsult : null,
+                    onPressed: onConsult,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      disabledBackgroundColor:
-                          AppColors.primary.withValues(alpha: 0.35),
                     ),
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text(canConsult
-                        ? 'Commencer consultation'
-                        : 'Le jour J uniquement'),
+                    label: const Text('Commencer consultation'),
                   ),
                 ),
               ],
             ),
           ],
+          // Si Confirme mais pas aujourd'hui → le bandeau "Consultation jour J"
+          // suffit, pas besoin d'un bouton grisé en plus.
         ],
       ),
     );
