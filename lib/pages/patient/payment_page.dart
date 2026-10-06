@@ -1,11 +1,11 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/calendar_sync_service.dart';
 import '../../services/local_reminder_service.dart';
 import '../../services/patient_api_service.dart';
 import '../../widgets/metric_card.dart';
+import 'patient_navigation.dart';
 
 class PaymentPage extends StatefulWidget {
   final Map<String, dynamic> appointment;
@@ -389,12 +389,21 @@ class _ReceiptView extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () {
+                    // Aller directement sur l'onglet RDV (index 1)
+                    // en effaçant toute la pile de navigation
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const PatientNavigation(initialIndex: 1),
+                      ),
+                      (_) => false,
+                    );
+                  },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('Terminer'),
+                  child: const Text('Voir mes rendez-vous'),
                 ),
               ),
             ],

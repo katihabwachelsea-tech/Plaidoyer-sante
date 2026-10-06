@@ -296,6 +296,13 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
             } else {
               _daysWithSlots.remove(dateStr);
             }
+            // Si le créneau sélectionné est maintenant indisponible → désélectionner
+            if (_selectedTime != null) {
+              final stillAvail = list.any(
+                (s) => s['time'] == _selectedTime && s['available'] == true,
+              );
+              if (!stillAvail) _selectedTime = null;
+            }
           });
         }
       } else if (mounted) {
@@ -938,8 +945,28 @@ class _DoctorBookingPageState extends State<DoctorBookingPage> {
         final isAvail   = slot['available'] == true;
         final isSelected = _selectedTime == time;
 
-        if (!isAvail) {
-          // Créneau déjà pris — grisé, non cliquable (style Doctolib)
+        // Filtre client de sécurité : si c'est aujourd'hui,
+        // barrer les slots dont l'heure locale est passée.
+        final isToday = _selectedDate != null &&
+            _selectedDate!.year  == DateTime.now().year &&
+            _selectedDate!.month == DateTime.now().month &&
+            _selectedDate!.day   == DateTime.now().day;
+        final isPastLocally = isToday && () {
+          try {
+            final parts = time.split(':');
+            final slotDt = DateTime(
+              _selectedDate!.year, _selectedDate!.month, _selectedDate!.day,
+              int.parse(parts[0]), int.parse(parts[1]),
+            );
+            return slotDt.isBefore(DateTime.now());
+          } catch (_) {
+            return false;
+          }
+        }();
+
+        // Slot non disponible (pris ou passé localement)
+        if (!isAvail || isPastLocally) {
+          // Créneau déjà pris ou heure dépassée — grisé, non cliquable
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(

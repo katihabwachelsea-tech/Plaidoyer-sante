@@ -185,8 +185,8 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
         var label = rawDate;
         var isFuture = false;
         try {
-          final dt = DateTime.parse(rawDate.replaceFirst(' ', 'T'));
-          label = fmt.format(dt.toLocal());
+          final dt = DateTime.parse(rawDate.replaceFirst(' ', 'T')).toLocal();
+          label = fmt.format(dt);
           isFuture = dt.isAfter(DateTime.now());
         } catch (_) {}
 

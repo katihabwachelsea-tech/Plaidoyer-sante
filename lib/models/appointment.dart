@@ -94,8 +94,10 @@ class Appointment {
               .toList() ??
           const [],
       dateHeure: DateTime.parse(
-        (map['date_heure'] ?? map['created_at']).toString().replaceFirst(' ', 'T'),
-      ),
+        (map['date_heure'] ?? map['date_rdv'] ?? map['created_at'])
+            .toString()
+            .replaceFirst(' ', 'T'),
+      ).toLocal(),
       montant: map['montant'] != null
           ? double.tryParse('${map['montant']}')
           : null,

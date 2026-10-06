@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../widgets/metric_card.dart';
 import '../patient_home_page.dart';
 import 'patient_appointments_page.dart';
@@ -7,14 +8,17 @@ import 'patient_profile_page.dart';
 import '../../widgets/notification_bell.dart';
 
 class PatientNavigation extends StatefulWidget {
-  const PatientNavigation({super.key});
+  /// Index de l'onglet à afficher au démarrage (0=Accueil, 1=RDV, 2=Dossier, 3=Profil)
+  final int initialIndex;
+
+  const PatientNavigation({super.key, this.initialIndex = 0});
 
   @override
   State<PatientNavigation> createState() => _PatientNavigationState();
 }
 
 class _PatientNavigationState extends State<PatientNavigation> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   final List<Widget> _pages = const [
     PatientHomePage(),
@@ -22,6 +26,12 @@ class _PatientNavigationState extends State<PatientNavigation> {
     HealthHistoryPage(),
     PatientProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
