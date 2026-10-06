@@ -8,6 +8,7 @@ import '../../widgets/metric_card.dart';
 import '../chat_page.dart';
 import 'consultation_form_page.dart';
 import 'medecin_ui.dart';
+import 'patient_dossier_page.dart';
 
 class MedecinAppointmentsPage extends StatefulWidget {
   const MedecinAppointmentsPage({super.key});
@@ -206,6 +207,18 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
           builder: (_) => ConsultationFormPage(appointment: rdv)),
     );
     if (done == true) _loadAppointments();
+  }
+
+  void _openDossier(Appointment rdv) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PatientDossierPage(
+          patientId: rdv.patientUserId,
+          patientNom: rdv.patientDisplayName,
+        ),
+      ),
+    );
   }
 
   // ── Build ────────────────────────────────────────────────────────────
@@ -428,6 +441,7 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                               appointment: rdv,
                               onConsult: () => _startConsultation(rdv),
                               onCancel: () => _cancel(rdv),
+                              onDossier: () => _openDossier(rdv),
                             ),
                     );
                   },
@@ -777,11 +791,13 @@ class _AppointmentCard extends StatelessWidget {
   final Appointment appointment;
   final VoidCallback onConsult;
   final VoidCallback onCancel;
+  final VoidCallback onDossier;
 
   const _AppointmentCard({
     required this.appointment,
     required this.onConsult,
     required this.onCancel,
+    required this.onDossier,
   });
 
   @override
@@ -959,6 +975,20 @@ class _AppointmentCard extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ] else if (appointment.isTermine) ...[
+            // RDV terminé → bouton Dossier patient
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onDossier,
+                icon: const Icon(Icons.folder_shared_rounded, size: 16),
+                label: const Text('Voir dossier patient'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0B6EBD),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ] else if (appointment.isConfirme && appointment.isToday) ...[

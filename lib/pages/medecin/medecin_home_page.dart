@@ -9,6 +9,7 @@ import '../../widgets/metric_card.dart';
 import '../../widgets/notification_bell.dart';
 import 'consultation_form_page.dart';
 import 'medecin_ui.dart';
+import 'patient_dossier_page.dart';
 
 class MedecinHomePage extends StatefulWidget {
   final ValueChanged<int>? onOpenTab;
@@ -180,6 +181,17 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       case 'Confirme':
         // Ouvrir la consultation (uniquement le jour J — vérifié dans _openConsultation)
         _openConsultation(rdv);
+      case 'Termine':
+        // Consultation terminée → ouvrir le dossier patient
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PatientDossierPage(
+              patientId: rdv.patientUserId,
+              patientNom: rdv.patientDisplayName,
+            ),
+          ),
+        );
       default:
         break;
     }
@@ -472,11 +484,10 @@ class _TodayTile extends StatelessWidget {
       'En_attente' => ('Valider', AppColors.warning),
       'Accepte'    => ('En attente paiement', AppColors.info),
       'Confirme'   => ('Consulter', AppColors.primary),
-      'Termine'    => ('Terminé', AppColors.textSecondary),
+      'Termine'    => ('Dossier patient', AppColors.primary),
       _            => ('Voir', AppColors.primary),
     };
-    final isDisabled = appointment.statut == 'Termine' ||
-        (appointment.statut == 'Confirme' && !appointment.isToday);
+    final isDisabled = appointment.statut == 'Confirme' && !appointment.isToday;
 
     return MedecinCard(
       padding: const EdgeInsets.all(14),
