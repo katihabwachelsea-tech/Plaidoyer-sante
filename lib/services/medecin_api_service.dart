@@ -80,18 +80,42 @@ class MedecinApiService {
     String? anamnese,
     String? examen,
     String? signatureBase64,
+    // SOAP
+    String? soapS,
+    String? soapO,
+    String? soapA,
+    String? soapP,
+    // Constantes vitales {ta, pouls, temperature, poids, taille, spo2}
+    Map<String, dynamic>? constantesVitales,
+    // Médicaments structurés [{nom, type, generique, dosage, unite,
+    //   frequence, prise, duree, unite_duree, instructions}]
+    List<Map<String, dynamic>>? medicaments,
+    // Examens complémentaires [{categorie, nom, resultat}]
+    List<Map<String, dynamic>>? examensComplementaires,
   }) async {
     final url = '$baseUrl/consultations';
     final headers = await _headers();
-    final body = {
+    final body = <String, dynamic>{
       'rendez_vous_id': rendezVousId,
-      'diagnostic': diagnostic,
-      'ordonnance': ordonnance,
-      'notes': notes,
+      'diagnostic':     diagnostic,
+      if (ordonnance != null)       'ordonnance': ordonnance,
+      if (notes != null)            'notes':      notes,
       if (anamnese != null && anamnese.isNotEmpty) 'anamnese': anamnese,
-      if (examen != null && examen.isNotEmpty) 'examen': examen,
+      if (examen   != null && examen.isNotEmpty)   'examen':   examen,
       if (signatureBase64 != null && signatureBase64.isNotEmpty)
         'signature': signatureBase64,
+      // SOAP
+      if (soapS != null && soapS.isNotEmpty) 'soap_s': soapS,
+      if (soapO != null && soapO.isNotEmpty) 'soap_o': soapO,
+      if (soapA != null && soapA.isNotEmpty) 'soap_a': soapA,
+      if (soapP != null && soapP.isNotEmpty) 'soap_p': soapP,
+      // Données structurées
+      if (constantesVitales != null && constantesVitales.isNotEmpty)
+        'constantes_vitales': constantesVitales,
+      if (medicaments != null && medicaments.isNotEmpty)
+        'medicaments': medicaments,
+      if (examensComplementaires != null && examensComplementaires.isNotEmpty)
+        'examens_complementaires': examensComplementaires,
     };
     ApiLogger.request(method: 'POST', url: url, headers: headers, body: body);
     final response = await http
