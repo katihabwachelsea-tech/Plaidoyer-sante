@@ -21,6 +21,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
   final _telephone = TextEditingController();
   final _maladie = TextEditingController();
   final _antecedents = TextEditingController();
+  final _allergies = TextEditingController();
   String? _groupe;
   bool _loading = true;
   bool _saving = false;
@@ -43,6 +44,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
     _telephone.dispose();
     _maladie.dispose();
     _antecedents.dispose();
+    _allergies.dispose();
     super.dispose();
   }
 
@@ -64,6 +66,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
       _telephone.text = (data['telephone'] ?? '').toString();
       _maladie.text = (data['maladie'] ?? '').toString();
       _antecedents.text = (data['antecedents'] ?? '').toString();
+      _allergies.text = (data['allergies'] ?? '').toString();
       _email = data['email']?.toString();
       _photoUrl = _abs(data['photo_url']?.toString());
       final groupe = data['groupe_sanguin']?.toString();
@@ -136,6 +139,7 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
         'telephone': _telephone.text.trim(),
         'maladie': _maladie.text.trim(),
         'antecedents': _antecedents.text.trim(),
+        'allergies': _allergies.text.trim(),
         if (_groupe != null) 'groupe_sanguin': _groupe,
       });
       if (mounted) {
@@ -324,6 +328,13 @@ class _PatientProfilePageState extends State<PatientProfilePage> {
                               controller: _maladie,
                               decoration: const InputDecoration(
                                   labelText: 'Motif de suivi'),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _allergies,
+                              maxLines: 2,
+                              decoration: const InputDecoration(
+                                  labelText: 'Allergies'),
                             ),
                             const SizedBox(height: 12),
                             TextFormField(

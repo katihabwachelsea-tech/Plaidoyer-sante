@@ -73,11 +73,24 @@ class _ChatPageState extends State<ChatPage> {
     if (!mounted) return;
     try {
       final msgs = await _service.getMessages(widget.appointmentId);
-      if (mounted && msgs.length != _messages.length) {
+      if (!mounted) return;
+      // Rafraîchir aussi si le statut lu change (✓ → ✓✓)
+      final changed = msgs.length != _messages.length ||
+          !_sameReadState(msgs, _messages);
+      if (changed) {
+        final grew = msgs.length > _messages.length;
         setState(() => _messages = msgs);
-        _scrollToBottom();
+        if (grew) _scrollToBottom();
       }
     } catch (_) {}
+  }
+
+  bool _sameReadState(List<ChatMessage> a, List<ChatMessage> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id || a[i].lu != b[i].lu) return false;
+    }
+    return true;
   }
 
   Future<void> _send() async {

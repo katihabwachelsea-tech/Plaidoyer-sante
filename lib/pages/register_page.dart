@@ -142,6 +142,16 @@ class _RegisterPageState extends State<RegisterPage> {
     return null;
   }
 
+  String? _validateTelephone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Le téléphone est requis';
+    }
+    if (value.trim().length < 8) {
+      return 'Au moins 8 caractères requis';
+    }
+    return null;
+  }
+
   // --------------------------------------------------
   // 💡 INSCRIPTION (AJOUT DU CHEMIN D'IMAGE)
   // --------------------------------------------------
@@ -159,9 +169,7 @@ class _RegisterPageState extends State<RegisterPage> {
       final authService = AuthService.instance;
       final result = await authService.register(
         email: _emailController.text.trim(),
-        telephone: _telephoneController.text.trim().isEmpty
-            ? null
-            : _telephoneController.text.trim(),
+        telephone: _telephoneController.text.trim(),
         password: _passwordController.text,
         fullName: _fullNameController.text.trim(),
         role: _selectedRole,
@@ -295,12 +303,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 TextFormField(
                   controller: _telephoneController,
                   decoration: const InputDecoration(
-                    labelText: 'Téléphone',
-                    hintText: 'Ex: 0612345678',
+                    labelText: 'Téléphone *',
+                    hintText: 'Ex: 79 00 00 00',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
+                  validator: _validateTelephone,
                   enabled: !_isLoading,
                 ),
 

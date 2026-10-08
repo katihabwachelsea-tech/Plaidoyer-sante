@@ -767,6 +767,12 @@ class _ConsultDetailSheet extends StatelessWidget {
   final Map<String, dynamic> h;
   const _ConsultDetailSheet({required this.h});
 
+  String _absUrl(String path) {
+    if (path.startsWith('http')) return path;
+    final base = AppConfig.baseUrl.replaceAll('/api', '');
+    return path.startsWith('/') ? '$base$path' : '$base/$path';
+  }
+
   @override
   Widget build(BuildContext context) {
     final diag    = h['diagnostic']?.toString() ?? '—';
@@ -866,6 +872,34 @@ class _ConsultDetailSheet extends StatelessWidget {
                 // Ordonnance texte (fallback)
                 if (ordoTxt.isNotEmpty && meds.isEmpty)
                   _block('Ordonnance', ordoTxt),
+
+                // Notes du médecin
+                if ((h['notes'] ?? h['conseils_ia'])?.toString().trim().isNotEmpty == true)
+                  _block(
+                    'Notes du médecin',
+                    (h['notes'] ?? h['conseils_ia']).toString(),
+                  ),
+
+                // Signature
+                if ((h['signature_path']?.toString() ?? '').isNotEmpty) ...[
+                  const Text('Signature du médecin',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _absUrl(h['signature_path'].toString()),
+                      height: 100,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Text(
+                        'Signature indisponible',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // Bouton PDF
                 const SizedBox(height: 8),

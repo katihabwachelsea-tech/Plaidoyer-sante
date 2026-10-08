@@ -33,16 +33,11 @@ class User {
   // static const String roleAdmin = 'admin';
   static const String roleDoctor = 'medecin'; // Aligné avec Laravel
   static const String rolePatient = 'patient'; // Aligné avec Laravel
-  static const String roleNurse = 'nurse';
-  static const String roleStaff = 'staff';
 
-  // Liste des rôles avec leurs labels
+  // Liste des rôles avec leurs labels (aligné API : patient | medecin)
   static const Map<String, String> roleLabels = {
-    // 'admin': 'Administrateur',
     'medecin': 'Médecin',
     'patient': 'Patient',
-    'nurse': 'Infirmier(ère)',
-    'staff': 'Personnel',
   };
 
   // Obtenir le label du rôle

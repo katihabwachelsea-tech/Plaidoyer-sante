@@ -285,6 +285,65 @@ AdviceResponse _getLocalAdviceFallback(Patient patient) {
     return AdviceResponse(advice: advice, source: MessageSource.local);
   }
 
+  /// Suggestion Gemini pour une étape du wizard consultation.
+  /// [step] : anamnese | examen | diagnostic | ordonnance
+  Future<String> suggestConsultationField({
+    required String step,
+    required String motif,
+    String? patientName,
+    String? urgence,
+  }) async {
+    final fallback = switch (step) {
+      'anamnese' =>
+        'Patient consulte pour : $motif.\n'
+            'Antécédents à préciser. Plaintes principales en lien avec le motif. '
+            'Durée et évolution des symptômes à documenter.',
+      'examen' =>
+        'Examen clinique orienté sur : $motif.\n'
+            'Constantes vitales à noter. Signes positifs / négatifs pertinents.',
+      'diagnostic' =>
+        'Diagnostic de travail en lien avec : $motif.\n'
+            'À confirmer selon l\'examen clinique et les examens complémentaires.',
+      'ordonnance' =>
+        'Traitement symptomatique adapté au motif ($motif).\n'
+            'Préciser posologie, durée et conseils de suivi.',
+      _ => 'Suggestion basée sur le motif : $motif',
+    };
+
+    if (!hasApiKey) return fallback;
+
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: _apiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.5,
+          maxOutputTokens: 512,
+        ),
+      );
+      final stepLabel = switch (step) {
+        'anamnese' => 'anamnèse (antécédents, plaintes, durée)',
+        'examen' => 'examen clinique (signes, constantes à commenter)',
+        'diagnostic' => 'diagnostic médical retenu',
+        'ordonnance' => 'ordonnance (médicaments et posologies en texte)',
+        _ => step,
+      };
+      final prompt = '''
+Tu assistes un médecin au Burundi. Propose un texte clinique court (3-6 lignes) pour l'étape "$stepLabel".
+Motif du RDV : $motif
+Patient : ${patientName ?? 'Non précisé'}
+Urgence : ${urgence ?? 'Normal'}
+Réponds UNIQUEMENT avec le texte à insérer dans le champ, sans introduction.
+''';
+      final response = await model.generateContent([Content.text(prompt)]);
+      final text = response.text?.trim();
+      if (text == null || text.isEmpty) return fallback;
+      return text;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   // Suggestions de questions
   List<String> getSuggestedQuestions() {
     if (_currentPatient == null) return [];

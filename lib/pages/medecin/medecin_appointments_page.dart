@@ -991,8 +991,8 @@ class _AppointmentCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else if (appointment.isConfirme && appointment.isToday) ...[
-            // Jour J + payé → boutons Annuler + Commencer
+          ] else if (appointment.isConfirme) ...[
+            // Confirmé : Annuler toujours possible ; Consulter uniquement le jour J
             Row(
               children: [
                 Expanded(
@@ -1001,22 +1001,24 @@ class _AppointmentCard extends StatelessWidget {
                     child: const Text('Annuler'),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton.icon(
-                    onPressed: onConsult,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                if (appointment.isToday) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      onPressed: onConsult,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                      ),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Commencer consultation'),
                     ),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Commencer consultation'),
                   ),
-                ),
+                ],
               ],
             ),
           ],
-          // Si Confirme mais pas aujourd'hui → le bandeau "Consultation jour J"
+          // Si Confirme mais pas aujourd'hui → bandeau info éventuel
           // suffit, pas besoin d'un bouton grisé en plus.
         ],
       ),

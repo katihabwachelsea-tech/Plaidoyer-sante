@@ -1,14 +1,16 @@
 // lib/pages/medecin/consultation_form_page.dart
 //
-// Wizard consultation médecin — 4 étapes :
-//   1. Anamnèse SOAP  (S/O avec constantes vitales/A/P + allergies)
-//   2. Compte-rendu   (motif + examens par spécialité + diagnostic + notes)
-//   3. Prescription   (médicaments structurés)
-//   4. Signature      (SignaturePad + récapitulatif)
+// Wizard consultation médecin — 5 étapes :
+//   1. Anamnèse      (antécédents, plaintes — non obligatoire)
+//   2. Examen        (signes, constantes — non obligatoire)
+//   3. Diagnostic    (obligatoire)
+//   4. Ordonnance    (médicaments — obligatoire)
+//   5. Signature     (canvas — obligatoire)
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/appointment.dart';
+import '../../services/ai_chat_service.dart';
 import '../../services/medecin_api_service.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/signature_pad.dart';
@@ -134,10 +136,18 @@ class ConsultationFormPage extends StatefulWidget {
 }
 
 class _ConsultationFormPageState extends State<ConsultationFormPage> {
-  static const _steps = ['Anamnèse', 'Compte-rendu', 'Prescription', 'Signature'];
+  static const _steps = [
+    'Anamnèse',
+    'Examen',
+    'Diagnostic',
+    'Ordonnance',
+    'Signature',
+  ];
 
   int  _step     = 0;
   bool _isSaving = false;
+  bool _geminiLoading = false;
+  final _examenCtrl = TextEditingController();
 
   // ── Étape 1 : SOAP ───────────────────────────────────────────────────────
   final _allergiesCtrl = TextEditingController();
@@ -178,25 +188,23 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
     _soapACtrl.dispose(); _soapPCtrl.dispose();
     _motifCtrl.dispose();
     _diagnosticCtrl.dispose(); _notesCtrl.dispose();
+    _examenCtrl.dispose();
     super.dispose();
   }
 
   // ── Validation ───────────────────────────────────────────────────────────
   bool _validateStep() {
     switch (_step) {
-      case 0: // Anamnèse — S obligatoire
-        if (_soapSCtrl.text.trim().isEmpty) {
-          _toast('La partie Subjectif (S) est requise', error: true);
-          return false;
-        }
+      case 0: // Anamnèse — non obligatoire
+      case 1: // Examen — non obligatoire
         return true;
-      case 1: // Diagnostic obligatoire
+      case 2: // Diagnostic obligatoire
         if (_diagnosticCtrl.text.trim().isEmpty) {
           _toast('Le diagnostic est requis', error: true);
           return false;
         }
         return true;
-      case 2: // Prescription — au moins 1 médicament avec nom
+      case 3: // Ordonnance — au moins 1 médicament avec nom
         if (_medicaments.isEmpty) {
           _toast('Ajoutez au moins un médicament', error: true);
           return false;
@@ -206,7 +214,7 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
           return false;
         }
         return true;
-      case 3: // Signature obligatoire
+      case 4: // Signature obligatoire
         if (!(_signatureKey.currentState?.hasStroke ?? false)) {
           _toast('La signature du médecin est requise', error: true);
           return false;
@@ -214,6 +222,74 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
         return true;
       default:
         return true;
+    }
+  }
+
+  Future<void> _suggestGemini() async {
+    final stepKey = switch (_step) {
+      0 => 'anamnese',
+      1 => 'examen',
+      2 => 'diagnostic',
+      3 => 'ordonnance',
+      _ => null,
+    };
+    if (stepKey == null) return;
+
+    setState(() => _geminiLoading = true);
+    try {
+      final text = await AIChatService.instance.suggestConsultationField(
+        step: stepKey,
+        motif: widget.appointment.motif.isNotEmpty
+            ? widget.appointment.motif
+            : (_motifCtrl.text.trim().isEmpty
+                ? 'Consultation'
+                : _motifCtrl.text.trim()),
+        patientName: widget.appointment.patientDisplayName,
+        urgence: widget.appointment.urgence,
+      );
+      if (!mounted) return;
+
+      final insert = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Suggestion Gemini'),
+          content: SingleChildScrollView(child: Text(text)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Fermer'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Insérer dans le champ'),
+            ),
+          ],
+        ),
+      );
+
+      if (insert == true && mounted) {
+        setState(() {
+          if (_step == 0) {
+            _soapSCtrl.text = text;
+          } else if (_step == 1) {
+            _examenCtrl.text = text;
+          } else if (_step == 2) {
+            _diagnosticCtrl.text = text;
+          } else if (_step == 3) {
+            _notesCtrl.text = text;
+            if (_medicaments.isEmpty) {
+              _medicaments.add(
+                _Medicament(nom: 'Selon suggestion IA (à préciser)'),
+              );
+            }
+          }
+        });
+        _toast('Suggestion insérée');
+      }
+    } catch (e) {
+      if (mounted) _toast('$e', error: true);
+    } finally {
+      if (mounted) setState(() => _geminiLoading = false);
     }
   }
 
@@ -253,13 +329,21 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
       // Ordonnance texte fallback (depuis médicaments)
       final ordonnanceTxt = _medicaments.map((m) => m.toText()).join('\n\n');
 
+      final anamneseParts = <String>[];
+      if (_allergiesCtrl.text.trim().isNotEmpty) {
+        anamneseParts.add('Allergies : ${_allergiesCtrl.text.trim()}');
+      }
+      if (_soapSCtrl.text.trim().isNotEmpty) {
+        anamneseParts.add(_soapSCtrl.text.trim());
+      }
+
       await MedecinApiService.instance.createConsultation(
         rendezVousId:  widget.appointment.id,
         diagnostic:    _diagnosticCtrl.text.trim(),
         ordonnance:    ordonnanceTxt,
         notes:         _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        anamnese:      _allergiesCtrl.text.trim().isEmpty
-            ? null : 'Allergies : ${_allergiesCtrl.text.trim()}',
+        anamnese:      anamneseParts.isEmpty ? null : anamneseParts.join('\n'),
+        examen:        _examenCtrl.text.trim().isEmpty ? null : _examenCtrl.text.trim(),
         soapS: _soapSCtrl.text.trim().isEmpty ? null : _soapSCtrl.text.trim(),
         soapO: constantes.isNotEmpty
             ? constantes.entries.map((e) => '${e.key}: ${e.value}').join(' | ') : null,
@@ -333,25 +417,44 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
 
   Widget _buildStepBody() {
     return switch (_step) {
-      0 => _buildSoapStep(),
-      1 => _buildCompteRenduStep(),
-      2 => _buildPrescriptionStep(),
-      3 => _buildSignatureStep(),
+      0 => _buildAnamneseStep(),
+      1 => _buildExamenStep(),
+      2 => _buildDiagnosticStep(),
+      3 => _buildPrescriptionStep(),
+      4 => _buildSignatureStep(),
       _  => const SizedBox.shrink(),
     };
   }
 
-  // ── Étape 1 : Anamnèse SOAP ──────────────────────────────────────────────
-  Widget _buildSoapStep() {
+  Widget _geminiButton() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: _geminiLoading ? null : _suggestGemini,
+        icon: _geminiLoading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.auto_awesome_rounded, size: 18),
+        label: Text(_geminiLoading ? 'Suggestion…' : 'Suggestion Gemini'),
+      ),
+    );
+  }
+
+  // ── Étape 1 : Anamnèse ───────────────────────────────────────────────────
+  Widget _buildAnamneseStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Allergies
+        _geminiButton(),
+        const SizedBox(height: 8),
         _SoapSection(
           letter: 'A',
           color: const Color(0xFFE74C3C),
-          label: 'Allergies',
-          subtitle: 'Saisissez les allergies observées lors de cette consultation',
+          label: 'Allergies / antécédents',
+          subtitle: 'Allergies et antécédents pertinents (optionnel)',
           icon: Icons.warning_amber_rounded,
           child: _textArea(
             controller: _allergiesCtrl,
@@ -359,59 +462,115 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
           ),
         ),
         const SizedBox(height: 12),
-
-        // S — Subjectif
         _SoapSection(
           letter: 'S',
           color: const Color(0xFF8E44AD),
-          label: 'Subjectif',
-          subtitle: 'Ce que dit le patient : symptômes, antécédents, histoire de la maladie',
+          label: 'Plaintes / durée',
+          subtitle: 'Ce que dit le patient : symptômes, histoire de la maladie',
           icon: Icons.person_outline_rounded,
           child: _textArea(
             controller: _soapSCtrl,
-            hint: 'Ex : Patient se plaint de douleurs thoraciques depuis 3 jours, irradiant vers le bras gauche…',
+            hint: 'Ex : Essoufflement depuis 3 jours…',
             minLines: 4,
           ),
         ),
-        const SizedBox(height: 12),
+      ],
+    );
+  }
 
-        // O — Objectif (constantes vitales)
+  // ── Étape 2 : Examen clinique ────────────────────────────────────────────
+  Widget _buildExamenStep() {
+    final exams = _getExamsForSpeciality(_specialite);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _geminiButton(),
+        const SizedBox(height: 8),
         _SoapSection(
           letter: 'O',
           color: const Color(0xFF2980B9),
-          label: 'Objectif',
-          subtitle: 'Constantes vitales et observations',
+          label: 'Constantes vitales',
+          subtitle: 'Optionnel',
           icon: Icons.monitor_heart_outlined,
           child: _buildConstantes(),
         ),
         const SizedBox(height: 12),
-
-        // A — Assessment
-        _SoapSection(
-          letter: 'A',
-          color: const Color(0xFFE67E22),
-          label: 'Assessment',
-          subtitle: 'Analyse clinique, hypothèses diagnostiques',
-          icon: Icons.analytics_outlined,
+        _SectionCard(
+          icon: Icons.healing_outlined,
+          iconColor: const Color(0xFF2980B9),
+          label: 'Signes cliniques',
           child: _textArea(
-            controller: _soapACtrl,
-            hint: 'Ex : Probable SCA — à confirmer par ECG et troponine…',
+            controller: _examenCtrl,
+            hint: 'Ex : Auscultation, palpation, signes positifs…',
             minLines: 3,
           ),
         ),
         const SizedBox(height: 12),
+        _ExamSection(
+          exams: exams,
+          selected: _selectedExams,
+          expanded: _examsExpanded,
+          onToggleExpand: () => setState(() => _examsExpanded = !_examsExpanded),
+          onToggleExam: (exam) => setState(() {
+            if (_selectedExams.contains(exam)) {
+              _selectedExams.remove(exam);
+            } else {
+              _selectedExams.add(exam);
+            }
+          }),
+        ),
+      ],
+    );
+  }
 
-        // P — Plan
-        _SoapSection(
-          letter: 'P',
-          color: const Color(0xFF27AE60),
-          label: 'Plan',
-          subtitle: 'Traitement, prescriptions, examens complémentaires, suivi',
-          icon: Icons.task_alt_rounded,
+  // ── Étape 3 : Diagnostic ─────────────────────────────────────────────────
+  Widget _buildDiagnosticStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _geminiButton(),
+        const SizedBox(height: 8),
+        _SectionCard(
+          icon: Icons.help_outline_rounded,
+          iconColor: const Color(0xFF6C3483),
+          label: 'Motif de consultation',
           child: _textArea(
-            controller: _soapPCtrl,
-            hint: 'Ex : Aspirine 300 mg, transfert USIC, Holter…',
+            controller: _motifCtrl,
+            hint: 'Ex : Douleurs thoraciques depuis 3 jours…',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SectionCard(
+          icon: Icons.biotech_outlined,
+          iconColor: const Color(0xFFE67E22),
+          label: 'Diagnostic *',
+          child: _textArea(
+            controller: _diagnosticCtrl,
+            hint: 'Ex : Hypertension artérielle non contrôlée…',
             minLines: 3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SoapSection(
+          letter: 'A',
+          color: const Color(0xFFE67E22),
+          label: 'Assessment',
+          subtitle: 'Analyse clinique (optionnel)',
+          icon: Icons.analytics_outlined,
+          child: _textArea(
+            controller: _soapACtrl,
+            hint: 'Hypothèses et raisonnement…',
+            minLines: 3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SectionCard(
+          icon: Icons.edit_note_rounded,
+          iconColor: AppColors.textSecondary,
+          label: 'Notes supplémentaires',
+          child: _textArea(
+            controller: _notesCtrl,
+            hint: 'Remarques libres, suivi prévu…',
           ),
         ),
       ],
@@ -459,72 +618,13 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
     );
   }
 
-  // ── Étape 2 : Compte-rendu ───────────────────────────────────────────────
-  Widget _buildCompteRenduStep() {
-    final exams = _getExamsForSpeciality(_specialite);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Motif de consultation
-        _SectionCard(
-          icon: Icons.help_outline_rounded,
-          iconColor: const Color(0xFF6C3483),
-          label: 'Motif de consultation',
-          child: _textArea(
-            controller: _motifCtrl,
-            hint: 'Ex : Douleurs thoraciques depuis 3 jours, fièvre à 38.5°C…',
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Examens complémentaires — expandable
-        _ExamSection(
-          exams: exams,
-          selected: _selectedExams,
-          expanded: _examsExpanded,
-          onToggleExpand: () => setState(() => _examsExpanded = !_examsExpanded),
-          onToggleExam: (exam) => setState(() {
-            if (_selectedExams.contains(exam)) {
-              _selectedExams.remove(exam);
-            } else {
-              _selectedExams.add(exam);
-            }
-          }),
-        ),
-        const SizedBox(height: 12),
-
-        // Diagnostic
-        _SectionCard(
-          icon: Icons.biotech_outlined,
-          iconColor: const Color(0xFFE67E22),
-          label: 'Diagnostic *',
-          child: _textArea(
-            controller: _diagnosticCtrl,
-            hint: 'Ex : Hypertension artérielle non contrôlée, stade II…',
-            minLines: 3,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Notes supplémentaires
-        _SectionCard(
-          icon: Icons.edit_note_rounded,
-          iconColor: AppColors.textSecondary,
-          label: 'Notes supplémentaires',
-          child: _textArea(
-            controller: _notesCtrl,
-            hint: 'Remarques libres, suivi prévu, examens complémentaires…',
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Étape 3 : Prescription ───────────────────────────────────────────────
+  // ── Étape 4 : Ordonnance ─────────────────────────────────────────────────
   Widget _buildPrescriptionStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _geminiButton(),
+        const SizedBox(height: 8),
         // En-tête
         Row(
           children: [

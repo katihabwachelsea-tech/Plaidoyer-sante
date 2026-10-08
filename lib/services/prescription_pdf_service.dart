@@ -5,7 +5,6 @@
 // sinon replie sur le champ ordonnance texte.
 // Intègre l'image de signature depuis signature_path (URL serveur).
 
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;

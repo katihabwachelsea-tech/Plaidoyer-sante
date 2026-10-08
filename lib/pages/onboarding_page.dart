@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
@@ -262,8 +261,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   TextFormField(
                     controller: _licenceController,
                     decoration: const InputDecoration(
-                      labelText: 'Numéro de licence',
-                      hintText: 'Ex: LIC-2024-001',
+                      labelText: 'Numéro d\'ordre / licence *',
+                      hintText: 'Ex: MED-2024-001',
                       prefixIcon: Icon(Icons.badge_outlined),
                     ),
                     textCapitalization: TextCapitalization.characters,
@@ -354,17 +353,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
                   const SizedBox(height: AppSizes.paddingM),
 
-                  TextFormField(
-                    controller: _groupeSanguinController,
+                  DropdownButtonFormField<String>(
+                    initialValue: _groupeSanguinController.text.isEmpty
+                        ? null
+                        : _groupeSanguinController.text,
                     decoration: const InputDecoration(
-                      labelText: 'Groupe sanguin',
-                      hintText: 'Ex: O+, A-, B+...',
+                      labelText: 'Groupe sanguin *',
                       prefixIcon: Icon(Icons.bloodtype_outlined),
                     ),
-                    textCapitalization: TextCapitalization.characters,
-                    textInputAction: TextInputAction.next,
+                    items: const [
+                      'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-',
+                    ].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                    onChanged: _isLoading
+                        ? null
+                        : (v) {
+                            if (v != null) {
+                              _groupeSanguinController.text = v;
+                            }
+                          },
                     validator: _validateRequired,
-                    enabled: !_isLoading,
                   ),
 
                   const SizedBox(height: AppSizes.paddingM),

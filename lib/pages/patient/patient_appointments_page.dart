@@ -191,7 +191,8 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
         } catch (_) {}
 
         final canPay = statut == 'Accepte' && isFuture;
-        final canCancel = (statut == 'En_attente' || statut == 'Accepte' || statut == 'Confirme') && isFuture;
+        // Annulation patient uniquement avant paiement (En_attente / Accepte)
+        final canCancel = (statut == 'En_attente' || statut == 'Accepte') && isFuture;
         final canJoin = canJoinTeleFromMap(appt);
         final mode = ((appt['service'] as Map?)?['mode'] ?? '').toString();
 
