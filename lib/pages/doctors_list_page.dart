@@ -56,26 +56,83 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
   }
 
   void _applyFilters() {
-    List<dynamic> filtered = _allDoctors;
+    List<dynamic> filtered = List<dynamic>.from(_allDoctors);
     if (_selectedSpecialty != null && _selectedSpecialty!.isNotEmpty) {
-      filtered = filtered.where((doc) {
-        final specialite = doc['specialite']?.toString().toLowerCase() ?? '';
-        return specialite.contains(_selectedSpecialty!.toLowerCase());
-      }).toList();
+      filtered = filtered
+          .where((doc) =>
+              _specialtyMatches(doc['specialite']?.toString(), _selectedSpecialty!))
+          .toList();
     }
-    if (_searchController.text.isNotEmpty) {
+    final q = _searchController.text.trim();
+    if (q.isNotEmpty) {
       filtered = filtered.where((doc) {
         final name =
-            (doc['user']?['nom'] ?? doc['nom'] ?? '').toString().toLowerCase();
-        final specialite = (doc['specialite'] ?? '').toString().toLowerCase();
-        final hopital = (doc['hopital'] ?? '').toString().toLowerCase();
-        final q = _searchController.text.toLowerCase();
-        return name.contains(q) ||
-            specialite.contains(q) ||
-            hopital.contains(q);
+            (doc['user']?['nom'] ?? doc['nom'] ?? '').toString();
+        final specialite = (doc['specialite'] ?? '').toString();
+        final hopital = (doc['hopital'] ?? '').toString();
+        // Priorité spécialité : "Dermatologue" → seulement Dermatologie
+        if (_looksLikeSpecialtyQuery(q)) {
+          return _specialtyMatches(specialite, q);
+        }
+        return _textContains(name, q) ||
+            _specialtyMatches(specialite, q) ||
+            _textContains(hopital, q);
       }).toList();
     }
     setState(() => _doctors = filtered);
+  }
+
+  /// Normalise accents / casse pour la comparaison.
+  String _norm(String s) {
+    const from = 'àâäáãåèéêëìíîïòóôöõùúûüýÿçñ';
+    const to   = 'aaaaaaeeeeiiiiooooouuuuyycn';
+    var out = s.toLowerCase().trim();
+    for (var i = 0; i < from.length; i++) {
+      out = out.replaceAll(from[i], to[i]);
+    }
+    return out;
+  }
+
+  /// Dermatologue ↔ Dermatologie, Cardiologue ↔ Cardiologie, etc.
+  String _specialtyStem(String raw) {
+    var s = _norm(raw)
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll('medecine generale', 'generaliste')
+        .replaceAll('medecin generaliste', 'generaliste');
+    // Suffixes métier / discipline
+    for (final suffix in [
+      'logue', 'logie', 'logiste', 'cien', 'cienne', 'iste', 'atre', 'atre'
+    ]) {
+      if (s.endsWith(suffix) && s.length > suffix.length + 3) {
+        s = s.substring(0, s.length - suffix.length);
+        break;
+      }
+    }
+    return s;
+  }
+
+  bool _specialtyMatches(String? doctorSpecialty, String query) {
+    if (doctorSpecialty == null || doctorSpecialty.trim().isEmpty) return false;
+    final a = _specialtyStem(doctorSpecialty);
+    final b = _specialtyStem(query);
+    if (a.isEmpty || b.isEmpty) return false;
+    return a.contains(b) || b.contains(a) || _norm(doctorSpecialty).contains(_norm(query));
+  }
+
+  bool _textContains(String haystack, String needle) =>
+      _norm(haystack).contains(_norm(needle));
+
+  bool _looksLikeSpecialtyQuery(String q) {
+    final n = _norm(q);
+    if (n.length < 4) return false;
+    // Mots typiques de spécialité / métier médical
+    const hints = [
+      'dermato', 'cardio', 'pediatr', 'gyneco', 'ophtalmo', 'pneumo',
+      'neuro', 'ortho', 'uro', 'psychiatr', 'general', 'dentiste',
+      'chirurgie', 'radiolog', 'endocrin', 'gastro', 'rheumat',
+      'ologue', 'ologie', 'iste',
+    ];
+    return hints.any((h) => n.contains(h));
   }
 
   void _onSpecialtyChanged(String? specialty) {

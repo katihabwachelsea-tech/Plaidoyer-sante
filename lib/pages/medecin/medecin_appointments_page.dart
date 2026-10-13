@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_config.dart';
 import '../../models/appointment.dart';
+import '../../services/local_reminder_service.dart';
 import '../../services/medecin_api_service.dart';
 import '../../services/offline_sync_service.dart';
 import '../../widgets/join_tele_button.dart';
@@ -44,6 +45,7 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
       final list = await _api.getAppointments();
       // Cache local pour consultation hors ligne (V.10.10)
       await OfflineSyncService.instance.cacheAppointments(list);
+      await _scheduleDoctorReminders(list);
       if (mounted) {
         setState(() {
           _appointments = list;
@@ -213,6 +215,21 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     }
   }
 
+  Future<void> _scheduleDoctorReminders(List<Appointment> list) async {
+    for (final rdv in list) {
+      if (!rdv.isConfirme) continue;
+      if (rdv.dateHeure.toLocal().isBefore(DateTime.now())) continue;
+      try {
+        await LocalReminderService.instance.scheduleForDoctorAppointment(
+          appointmentId: rdv.id,
+          dateRdv: rdv.dateHeure,
+          patientName: rdv.patientDisplayName,
+          motif: rdv.motif.isEmpty ? 'Consultation' : rdv.motif,
+        );
+      } catch (_) {}
+    }
+  }
+
   Future<void> _startConsultation(Appointment rdv) async {
     if (!rdv.isToday) {
       final label =
@@ -220,6 +237,19 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Consultation possible uniquement le jour du RDV ($label).'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+    if (!rdv.canStartConsultation) {
+      final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
+      final mins = rdv.minutesUntilStart;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          'Trop tôt : la consultation commence à $heure'
+          '${mins > 0 ? ' (dans $mins min)' : ''}.',
+        ),
         backgroundColor: AppColors.warning,
       ));
       return;
@@ -1015,7 +1045,7 @@ class _AppointmentCard extends StatelessWidget {
               ),
             ),
           ] else if (appointment.isConfirme) ...[
-            // Confirmé : Annuler toujours possible ; Consulter uniquement le jour J
+            // Confirmé : Annuler toujours ; Consulter seulement jour J + heure atteinte
             Row(
               children: [
                 Expanded(
@@ -1029,12 +1059,22 @@ class _AppointmentCard extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed: onConsult,
+                      onPressed:
+                          appointment.canStartConsultation ? onConsult : onConsult,
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: appointment.canStartConsultation
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Commencer consultation'),
+                      icon: Icon(appointment.canStartConsultation
+                          ? Icons.play_arrow_rounded
+                          : Icons.schedule_rounded),
+                      label: Text(
+                        appointment.canStartConsultation
+                            ? 'Commencer consultation'
+                            : 'À ${DateFormat('HH:mm').format(appointment.dateHeure.toLocal())}'
+                                '${appointment.minutesUntilStart > 0 ? ' (−${appointment.minutesUntilStart} min)' : ''}',
+                      ),
                     ),
                   ),
                 ],

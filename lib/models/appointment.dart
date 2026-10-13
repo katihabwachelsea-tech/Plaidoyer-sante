@@ -68,6 +68,24 @@ class Appointment {
     return local.year == now.year && local.month == now.month && local.day == now.day;
   }
 
+  /// Marge avant l'heure prévue (préparation cabinet).
+  static const Duration consultationEarlyMargin = Duration(minutes: 5);
+
+  /// True si on peut démarrer la consultation (jour J + heure atteinte).
+  bool get canStartConsultation {
+    if (!isConfirme || !isToday) return false;
+    final start = dateHeure.toLocal().subtract(consultationEarlyMargin);
+    return !DateTime.now().isBefore(start);
+  }
+
+  /// Minutes restantes avant l'heure de début (0 si déjà atteint / passé).
+  int get minutesUntilStart {
+    final start = dateHeure.toLocal();
+    final diff = start.difference(DateTime.now());
+    if (diff.isNegative) return 0;
+    return diff.inMinutes;
+  }
+
   String get patientDisplayName => patientNom ?? 'Patient #$patientUserId';
 
   factory Appointment.fromApiMap(Map<String, dynamic> map) {

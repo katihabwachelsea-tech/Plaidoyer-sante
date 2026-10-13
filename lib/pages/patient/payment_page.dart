@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
-import '../../services/calendar_sync_service.dart';
 import '../../services/local_reminder_service.dart';
 import '../../services/patient_api_service.dart';
 import '../../widgets/metric_card.dart';
@@ -127,36 +125,19 @@ class _PaymentPageState extends State<PaymentPage> {
         _paying = false;
       });
 
-      // ── Rappels locaux (4 niveaux) + sync agenda ──────────────────────
+      // ── Rappels locaux uniquement (pas d'ouverture agenda téléphone) ──
       try {
         final data = result['data'];
         final raw  = (data is Map ? data['date_rdv'] : null)
             ?? widget.appointment['date_rdv'];
         final dt   = DateTime.parse(raw.toString().replaceFirst(' ', 'T'));
 
-        final serviceMap = widget.appointment['service'] as Map?;
-        final mode       = serviceMap?['mode']?.toString() ?? '';
-        final isTele     = mode == 'teleconsultation';
-        final meetingUrl = widget.appointment['meeting_url']?.toString();
-
-        // 4 rappels intelligents (J-1, H-2, H-1 avec snooze, H-15min)
+        // Rappels : J-1, H-2, H-1, H-30, H-15
         await LocalReminderService.instance.scheduleForAppointment(
           appointmentId: _appointmentId,
           dateRdv:       dt,
           title:         _doctorName,
           body:          '$_serviceName · $_dateLabel',
-        );
-
-        // Sync agenda téléphone — ouvre le calendrier natif
-        unawaited(
-          CalendarSyncService.instance.addAppointmentToCalendar(
-            dateRdv:           dt,
-            doctorName:        _doctorName,
-            serviceName:       _serviceName,
-            motif:             widget.appointment['motif']?.toString() ?? '',
-            location:          meetingUrl,
-            isTeleconsultation: isTele,
-          ),
         );
       } catch (_) {}
     } catch (e) {
@@ -390,11 +371,10 @@ class _ReceiptView extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () {
-                    // Aller directement sur l'onglet RDV (index 1)
-                    // en effaçant toute la pile de navigation
+                    // Accueil patient (pas l'agenda téléphone / pas l'onglet RDV)
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => const PatientNavigation(initialIndex: 1),
+                        builder: (_) => const PatientNavigation(initialIndex: 0),
                       ),
                       (_) => false,
                     );
@@ -403,7 +383,16 @@ class _ReceiptView extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('Voir mes rendez-vous'),
+                  child: const Text('Retour à l\'accueil'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Des rappels vous seront envoyés avant le rendez-vous.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.9),
+                  fontSize: 12,
                 ),
               ),
             ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
+import '../../services/local_reminder_service.dart';
 import '../../services/medecin_api_service.dart';
 import '../../services/offline_sync_service.dart';
 import '../../utils/doctor_photo.dart';
@@ -49,6 +50,18 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       // Enrichir le cache pour consultation hors ligne
       final all = await _api.getAppointments();
       await OfflineSyncService.instance.cacheAppointments(all);
+      for (final rdv in all) {
+        if (!rdv.isConfirme) continue;
+        if (rdv.dateHeure.toLocal().isBefore(DateTime.now())) continue;
+        try {
+          await LocalReminderService.instance.scheduleForDoctorAppointment(
+            appointmentId: rdv.id,
+            dateRdv: rdv.dateHeure,
+            patientName: rdv.patientDisplayName,
+            motif: rdv.motif.isEmpty ? 'Consultation' : rdv.motif,
+          );
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _today = today;
@@ -214,6 +227,20 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Consultation possible uniquement le jour du RDV ($dateLabel).'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    if (!rdv.canStartConsultation) {
+      final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Trop tôt : démarrez à partir de $heure'
+            '${rdv.minutesUntilStart > 0 ? ' (encore ${rdv.minutesUntilStart} min)' : ''}.',
+          ),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -489,15 +516,20 @@ class _TodayTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final time = DateFormat('HH:mm').format(appointment.dateHeure.toLocal());
 
-    // Libellé et couleur du bouton selon le statut
+    // Libellé et couleur du bouton selon le statut + heure
     final (btnLabel, btnColor) = switch (appointment.statut) {
       'En_attente' => ('Valider', AppColors.warning),
       'Accepte'    => ('En attente paiement', AppColors.info),
-      'Confirme'   => ('Consulter', AppColors.primary),
+      'Confirme'   => appointment.canStartConsultation
+          ? ('Consulter', AppColors.primary)
+          : appointment.isToday
+              ? ('À $time', AppColors.textSecondary)
+              : ('Consulter', AppColors.primary),
       'Termine'    => ('Dossier patient', AppColors.primary),
       _            => ('Voir', AppColors.primary),
     };
-    final isDisabled = appointment.statut == 'Confirme' && !appointment.isToday;
+    final isDisabled = appointment.statut == 'Confirme' &&
+        (!appointment.isToday || !appointment.canStartConsultation);
 
     return MedecinCard(
       padding: const EdgeInsets.all(14),
