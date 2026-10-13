@@ -120,7 +120,7 @@ class WHOApiService {
             Uri.parse(url),
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'PlaidoyerSanteApp/1.0',
+              'User-Agent': 'MobClinicApp/1.0',
             },
           )
           .timeout(const Duration(seconds: 30));

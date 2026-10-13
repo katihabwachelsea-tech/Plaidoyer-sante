@@ -35,7 +35,7 @@
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="Plaidoyer Santé">
+        android:label="Mob-Clinic">
         <activity
             android:name=".ProfileActivity"
             android:exported="false" />

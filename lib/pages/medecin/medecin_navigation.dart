@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/offline_sync_service.dart';
 import '../../widgets/metric_card.dart';
 import 'medecin_appointments_page.dart';
 import 'medecin_home_page.dart';
@@ -15,6 +16,7 @@ class MedecinNavigation extends StatefulWidget {
 class _MedecinNavigationState extends State<MedecinNavigation> {
   int _currentIndex = 0;
   late final List<Widget> _pages;
+  final _offline = OfflineSyncService.instance;
 
   @override
   void initState() {
@@ -25,6 +27,14 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
       const MedecinSchedulePage(),
       const MedecinProfilePage(),
     ];
+    // V.10.11 : écoute réseau + sync auto au retour
+    _offline.start();
+  }
+
+  @override
+  void dispose() {
+    _offline.stop();
+    super.dispose();
   }
 
   void _openTab(int index) => setState(() => _currentIndex = index);
@@ -32,7 +42,90 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: Column(
+        children: [
+          // Bandeau offline / file de sync
+          ValueListenableBuilder<bool>(
+            valueListenable: _offline.isOnline,
+            builder: (_, online, __) {
+              return ValueListenableBuilder<int>(
+                valueListenable: _offline.pendingCount,
+                builder: (_, pending, __) {
+                  if (online && pending == 0) {
+                    return const SizedBox.shrink();
+                  }
+                  final color =
+                      online ? AppColors.warning : const Color(0xFF6C757D);
+                  final label = online
+                      ? '$pending élément(s) en attente de sync — toucher pour synchroniser'
+                      : 'Hors ligne — les consultations seront synchronisées au retour du réseau'
+                          '${pending > 0 ? ' ($pending en file)' : ''}';
+                  return Material(
+                    color: color.withValues(alpha: 0.15),
+                    child: InkWell(
+                      onTap: online
+                          ? () async {
+                              final r = await _offline.syncNow(reason: 'manual');
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(r.message),
+                                  backgroundColor: r.success
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                ),
+                              );
+                            }
+                          : null,
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                online
+                                    ? Icons.cloud_sync_rounded
+                                    : Icons.cloud_off_rounded,
+                                size: 18,
+                                color: color,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                              if (online && pending > 0)
+                                Text(
+                                  'Sync',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: color,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          Expanded(
+            child: IndexedStack(index: _currentIndex, children: _pages),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _openTab,
@@ -49,7 +142,8 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
           ),
           NavigationDestination(
             icon: Icon(Icons.event_outlined),
-            selectedIcon: Icon(Icons.event_available_rounded, color: AppColors.primary),
+            selectedIcon:
+                Icon(Icons.event_available_rounded, color: AppColors.primary),
             label: 'RDV',
           ),
           NavigationDestination(

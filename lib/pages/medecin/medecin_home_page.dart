@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
 import '../../services/medecin_api_service.dart';
+import '../../services/offline_sync_service.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/notification_bell.dart';
@@ -45,6 +46,9 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
     try {
       final data = await _api.getDashboard();
       final today = await _api.getAppointments(todayOnly: true);
+      // Enrichir le cache pour consultation hors ligne
+      final all = await _api.getAppointments();
+      await OfflineSyncService.instance.cacheAppointments(all);
       if (mounted) {
         setState(() {
           _today = today;
@@ -59,10 +63,17 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       }
     } catch (e) {
       final user = AuthService.instance.currentUser;
+      final cached =
+          await OfflineSyncService.instance.loadCachedAppointments();
+      final todayCached = cached.where((a) => a.isToday).toList();
       if (mounted) {
         setState(() {
           _doctorName = user?.fullName ?? 'Médecin';
-          _error = e.toString();
+          _today = todayCached;
+          _todayCount = todayCached.where((a) => a.isConfirme).length;
+          _error = todayCached.isEmpty
+              ? e.toString()
+              : 'Mode hors ligne — données locales';
           _isLoading = false;
         });
       }

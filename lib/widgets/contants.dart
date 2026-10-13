@@ -10,7 +10,7 @@
 //   static const String statsEndpoint = '/statistics';
   
 //   // Textes de l'application
-//   static const String appName = 'Predoyer Santé';
+//   static const String appName = 'Mob-Clinic';
 //   static const String appSlogan = 'Suivi des patients atteints du cancer';
 // }
 

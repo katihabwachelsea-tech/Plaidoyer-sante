@@ -378,7 +378,7 @@ class _ReceiptView extends StatelessWidget {
                     _line('Prestation', '${receipt['service']}'),
                     const SizedBox(height: 8),
                     const Text(
-                      'Simulation Mobile Money — reçu numérique Plaidoyer Santé',
+                      'Simulation Mobile Money — reçu numérique Mob-Clinic',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),

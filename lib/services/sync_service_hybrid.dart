@@ -77,7 +77,8 @@ class SyncServiceHybrid {
   }
 
   Future<int> _pushPendingChanges() async {
-    final items = await _db.getPendingSyncItems();
+    // Uniquement le carnet patients — les consultations passent par OfflineSyncService
+    final items = await _db.getPendingSyncItems(entityType: 'patient');
     var pushed = 0;
 
     for (final item in items) {

@@ -1,11 +1,11 @@
 {
-    "name": "Plaidoyer Santé",
-    "short_name": "Plaidoyer",
+    "name": "Mob-Clinic",
+    "short_name": "Mob-Clinic",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F4F8FB",
     "theme_color": "#107ACA",
-    "description": "A new Flutter project.",
+    "description": "Mob-Clinic",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

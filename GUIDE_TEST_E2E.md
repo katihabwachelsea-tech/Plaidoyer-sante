@@ -1,4 +1,4 @@
-# Guide de test E2E — Plaidoyer Santé
+# Guide de test E2E — MOB-MEDHEALTH CARE SERVICES
 
 Guide manuel pour tester **tout le cycle** Patient + Médecin, de l’inscription jusqu’au dossier médical.
 

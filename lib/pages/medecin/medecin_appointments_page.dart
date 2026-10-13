@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../config/app_config.dart';
 import '../../models/appointment.dart';
 import '../../services/medecin_api_service.dart';
+import '../../services/offline_sync_service.dart';
 import '../../widgets/join_tele_button.dart';
 import '../../widgets/metric_card.dart';
 import '../chat_page.dart';
@@ -41,14 +42,36 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     });
     try {
       final list = await _api.getAppointments();
+      // Cache local pour consultation hors ligne (V.10.10)
+      await OfflineSyncService.instance.cacheAppointments(list);
       if (mounted) {
         setState(() {
           _appointments = list;
-          _isLoading    = false;
+          _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+      // Fallback cache SQLite si hors ligne / API down
+      try {
+        final cached =
+            await OfflineSyncService.instance.loadCachedAppointments();
+        if (mounted) {
+          setState(() {
+            _appointments = cached;
+            _isLoading = false;
+            _error = cached.isEmpty
+                ? e.toString()
+                : 'Mode hors ligne — RDV en cache local';
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _error = e.toString();
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 

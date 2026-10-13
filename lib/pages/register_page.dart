@@ -1,11 +1,10 @@
 // lib/pages/register_page.dart
 
 import 'package:flutter/material.dart';
-import 'dart:io'; // Pour le type File
-import 'package:image_picker/image_picker.dart'; // Pour la sélection d'image
-import 'package:path_provider/path_provider.dart'; // Pour trouver le dossier de l'app
-import 'package:path/path.dart' as p; // Pour manipuler les chemins
-//import '../utils/constants.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../widgets/metric_card.dart';
@@ -25,11 +24,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _fullNameController = TextEditingController();
-  
 
-  // 💡 NOUVEAU : Chemin d'accès à la photo sélectionnée
-  String? _profileImagePath; 
-
+  String? _profileImagePath;
   String _selectedRole = User.roleDoctor;
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -46,36 +42,39 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   // --------------------------------------------------
-  // 💡 LOGIQUE D'IMAGE
+  // LOGIQUE D'IMAGE
   // --------------------------------------------------
 
   Future<void> _pickAndSaveImage() async {
     final picker = ImagePicker();
-    // Utilisation de la galerie pour simplifier
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
 
     if (pickedFile != null) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
       try {
         final appDir = await getApplicationDocumentsDirectory();
-        // Créer un nom de fichier unique basé sur le temps
         final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
         final newPath = p.join(appDir.path, fileName);
-        
-        // Copier l'image sélectionnée vers le chemin permanent de l'application
         final savedImage = await File(pickedFile.path).copy(newPath);
 
         if (mounted) {
-          setState(() {
-            _profileImagePath = savedImage.path;
-          });
+          setState(() => _profileImagePath = savedImage.path);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Photo de profil sélectionnée avec succès.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 1),
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Photo de profil sélectionnée'),
+                ],
+              ),
+              backgroundColor: AppColors.accent,
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -83,87 +82,65 @@ class _RegisterPageState extends State<RegisterPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur de sélection ou de sauvegarde de la photo: $e'),
+              content: Text('Erreur lors de la sélection : $e'),
               backgroundColor: AppColors.error,
             ),
           );
         }
       } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
 
+  void _removeImage() {
+    setState(() => _profileImagePath = null);
+  }
+
   // --------------------------------------------------
-  // 💡 VALIDATIONS
+  // VALIDATIONS
   // --------------------------------------------------
 
   String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'L\'email est requis';
-    }
+    if (value == null || value.trim().isEmpty) return 'L\'email est requis';
     if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(value.trim())) {
-      return 'Entrez une adresse email valide';
+      return 'Adresse email invalide';
     }
     return null;
   }
 
   String? _validateFullName(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Le nom complet est requis';
-    }
-    if (value.trim().length < 3) {
-      return 'Au moins 3 caractères requis';
-    }
+    if (value == null || value.trim().isEmpty) return 'Le nom complet est requis';
+    if (value.trim().length < 3) return 'Au moins 3 caractères requis';
     return null;
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Le mot de passe est requis';
-    }
-    if (value.length < 8) {
-      return 'Au moins 8 caractères requis';
-    }
+    if (value == null || value.isEmpty) return 'Le mot de passe est requis';
+    if (value.length < 8) return 'Au moins 8 caractères requis';
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Veuillez confirmer le mot de passe';
-    }
-    if (value != _passwordController.text) {
-      return 'Les mots de passe ne correspondent pas';
-    }
+    if (value == null || value.isEmpty) return 'Veuillez confirmer le mot de passe';
+    if (value != _passwordController.text) return 'Les mots de passe ne correspondent pas';
     return null;
   }
 
   String? _validateTelephone(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Le téléphone est requis';
-    }
-    if (value.trim().length < 8) {
-      return 'Au moins 8 caractères requis';
-    }
+    if (value == null || value.trim().isEmpty) return 'Le téléphone est requis';
+    if (value.trim().length < 8) return 'Au moins 8 chiffres requis';
     return null;
   }
 
   // --------------------------------------------------
-  // 💡 INSCRIPTION (AJOUT DU CHEMIN D'IMAGE)
+  // INSCRIPTION
   // --------------------------------------------------
 
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final authService = AuthService.instance;
@@ -173,26 +150,18 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _passwordController.text,
         fullName: _fullNameController.text.trim(),
         role: _selectedRole,
-        // La photo de profil s'envoie après connexion via la page Profil
-        // (upload multipart). On n'envoie pas le chemin local ici car
-        // le backend valide photo_url comme une URL HTTP valide.
         profileImageUrl: null,
       );
 
       if (!mounted) return;
 
       if (result['success']) {
-        // ✅ Compte créé, rediriger vers l'onboarding
-        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => OnboardingPage(
-              role: _selectedRole,
-            ),
+            builder: (context) => OnboardingPage(role: _selectedRole),
           ),
         );
       } else {
-        // Afficher l'erreur
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message']),
@@ -205,319 +174,621 @@ class _RegisterPageState extends State<RegisterPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: $e'),
+            content: Text('Erreur : $e'),
             backgroundColor: AppColors.error,
           ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   // --------------------------------------------------
-  // 💡 CONSTRUCTION DE L'UI
+  // WIDGETS HELPERS
+  // --------------------------------------------------
+
+  /// En-tête héro avec dégradé et photo de profil centrée
+  Widget _buildHero() {
+    final hasImage = _profileImagePath != null &&
+        File(_profileImagePath!).existsSync();
+
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primaryDark, AppColors.primary, AppColors.primaryLight],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        children: [
+          // Titre de page
+          Text(
+            'Créer un compte',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Rejoignez Mob-Clinic en quelques étapes',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withAlpha(200),
+                ),
+          ),
+          const SizedBox(height: 28),
+
+          // Avatar cliquable
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Anneau décoratif extérieur
+              Container(
+                width: 116,
+                height: 116,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withAlpha(80), width: 3),
+                ),
+              ),
+              // Avatar principal
+              GestureDetector(
+                onTap: _isLoading ? null : _pickAndSaveImage,
+                child: Container(
+                  width: 108,
+                  height: 108,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withAlpha(30),
+                    border: Border.all(color: Colors.white, width: 3),
+                    image: hasImage
+                        ? DecorationImage(
+                            image: FileImage(File(_profileImagePath!)),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: !hasImage
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.person_outline_rounded,
+                                color: Colors.white, size: 38),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Photo',
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(220),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        )
+                      : null,
+                ),
+              ),
+              // Badge "+" ou "✓"
+              Positioned(
+                bottom: 2,
+                right: 0,
+                child: GestureDetector(
+                  onTap: _isLoading
+                      ? null
+                      : (hasImage ? _removeImage : _pickAndSaveImage),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: hasImage ? AppColors.error : AppColors.accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(40),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      hasImage ? Icons.close_rounded : Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Label sous l'avatar
+          Text(
+            hasImage ? 'Photo ajoutée ✓' : 'Ajouter une photo (facultatif)',
+            style: TextStyle(
+              color: Colors.white.withAlpha(210),
+              fontSize: 13,
+              fontWeight: hasImage ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Titre de section avec ligne décorative
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Carte de section avec ombre légère
+  Widget _buildCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSizes.paddingM),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppSizes.radiusL),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  /// Champ texte avec style uniforme
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData prefixIcon,
+    TextInputType keyboardType = TextInputType.text,
+    TextInputAction textInputAction = TextInputAction.next,
+    String? Function(String?)? validator,
+    bool obscure = false,
+    VoidCallback? onToggleObscure,
+    TextCapitalization capitalization = TextCapitalization.none,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(prefixIcon, color: AppColors.primary),
+        suffixIcon: onToggleObscure != null
+            ? IconButton(
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  color: AppColors.textSecondary,
+                ),
+                onPressed: onToggleObscure,
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.surfaceVariant,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: const BorderSide(color: AppColors.border, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+      ),
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      validator: validator,
+      obscureText: obscure,
+      textCapitalization: capitalization,
+      enabled: !_isLoading,
+    );
+  }
+
+  // --------------------------------------------------
+  // BUILD PRINCIPAL
   // --------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      // AppBar transparente pour que le héro prenne tout le haut
       appBar: AppBar(
-        title: const Text('Créer un compte'),
+        backgroundColor: AppColors.primaryDark,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+        ),
+        // Le titre est dans le héro, on garde l'AppBar minimaliste
+        title: const SizedBox.shrink(),
       ),
-      body: SafeArea(
+      body: Form(
+        key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSizes.paddingL),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // En-tête avec icône
-                Container(
-                  padding: const EdgeInsets.all(AppSizes.paddingL),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── HÉRO : Photo + titre ─────────────────────────────────
+              _buildHero(),
+
+              // ── CONTENU DU FORMULAIRE ────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+
+                    // ── SECTION 1 : Identité ──────────────────────────
+                    _buildSectionTitle('Identité', Icons.badge_outlined),
+                    _buildCard(
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            controller: _fullNameController,
+                            label: 'Nom complet *',
+                            hint: 'Ex: Jean Dupont',
+                            prefixIcon: Icons.person_outline_rounded,
+                            validator: _validateFullName,
+                            capitalization: TextCapitalization.words,
+                          ),
+                          const SizedBox(height: AppSizes.paddingM),
+                          // Sélection du rôle sous forme de deux chips
+                          _buildRoleSelector(),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingL),
+
+                    // ── SECTION 2 : Coordonnées ───────────────────────
+                    _buildSectionTitle('Coordonnées', Icons.contact_mail_outlined),
+                    _buildCard(
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            controller: _emailController,
+                            label: 'Email *',
+                            hint: 'jean.dupont@example.com',
+                            prefixIcon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: _validateEmail,
+                          ),
+                          const SizedBox(height: AppSizes.paddingM),
+                          _buildTextField(
+                            controller: _telephoneController,
+                            label: 'Téléphone *',
+                            hint: 'Ex: 79 00 00 00',
+                            prefixIcon: Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                            validator: _validateTelephone,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingL),
+
+                    // ── SECTION 3 : Sécurité ──────────────────────────
+                    _buildSectionTitle('Sécurité', Icons.lock_outline_rounded),
+                    _buildCard(
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            controller: _passwordController,
+                            label: 'Mot de passe *',
+                            hint: 'Au moins 8 caractères',
+                            prefixIcon: Icons.lock_outline_rounded,
+                            obscure: _obscurePassword,
+                            onToggleObscure: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                            validator: _validatePassword,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSizes.paddingM),
+                          _buildTextField(
+                            controller: _confirmPasswordController,
+                            label: 'Confirmer le mot de passe *',
+                            hint: 'Retapez le mot de passe',
+                            prefixIcon: Icons.lock_reset_rounded,
+                            obscure: _obscureConfirmPassword,
+                            onToggleObscure: () => setState(
+                              () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                            ),
+                            validator: _validateConfirmPassword,
+                            textInputAction: TextInputAction.done,
+                          ),
+                          const SizedBox(height: AppSizes.paddingS),
+                          // Indicateur de sécurité du mot de passe
+                          _buildPasswordStrengthIndicator(),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingL),
+
+                    // Note champs obligatoires
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            size: 13, color: AppColors.textLight),
+                        const SizedBox(width: 5),
+                        Text(
+                          '* Champs obligatoires',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textLight,
+                              ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingXL),
+
+                    // ── BOUTON PRINCIPAL ──────────────────────────────
+                    SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _register,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 3,
+                          shadowColor: AppColors.primary.withAlpha(80),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Création en cours...',
+                                      style: TextStyle(fontSize: 16)),
+                                ],
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_add_rounded, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Créer le compte',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingM),
+
+                    // ── BOUTON ANNULER ────────────────────────────────
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed:
+                            _isLoading ? null : () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(
+                              color: AppColors.border, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppSizes.radiusM),
+                          ),
+                        ),
+                        child: const Text('Annuler',
+                            style: TextStyle(fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------
+  // SÉLECTEUR DE RÔLE (Chips)
+  // --------------------------------------------------
+
+  Widget _buildRoleSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Je suis…',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: User.roleLabels.entries.map((entry) {
+            final isSelected = _selectedRole == entry.key;
+            final isDoctor = entry.key == User.roleDoctor;
+            return Expanded(
+              child: GestureDetector(
+                onTap: _isLoading
+                    ? null
+                    : () => setState(() => _selectedRole = entry.key),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: EdgeInsets.only(
+                    right: isDoctor ? 8 : 0,
+                    left: isDoctor ? 0 : 8,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha((0.1 * 255).round()),
-                    borderRadius: BorderRadius.circular(AppSizes.radiusL),
+                    color: isSelected
+                        ? AppColors.primary.withAlpha(20)
+                        : AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.border,
+                      width: isSelected ? 2 : 1,
+                    ),
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.person_add_rounded,
-                          color: AppColors.textOnPrimary,
-                          size: 32,
-                        ),
+                      Icon(
+                        isDoctor
+                            ? Icons.medical_services_outlined
+                            : Icons.person_outline_rounded,
+                        size: 18,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
-                      const SizedBox(width: AppSizes.paddingM),
-                      Expanded(
-                        child: Text(
-                          'Créez un nouveau compte utilisateur',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
+                      const SizedBox(width: 6),
+                      Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
-                const SizedBox(height: AppSizes.paddingXL),
+  // --------------------------------------------------
+  // INDICATEUR FORCE DU MOT DE PASSE
+  // --------------------------------------------------
 
-                // Section: Informations de connexion
-                Text(
-                  'Informations de connexion',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+  Widget _buildPasswordStrengthIndicator() {
+    final password = _passwordController.text;
+    if (password.isEmpty) return const SizedBox.shrink();
+
+    int strength = 0;
+    if (password.length >= 8) strength++;
+    if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
+    if (RegExp(r'[0-9]').hasMatch(password)) strength++;
+    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) strength++;
+
+    final labels = ['Faible', 'Moyen', 'Bon', 'Fort'];
+    final colors = [
+      AppColors.error,
+      AppColors.warning,
+      AppColors.info,
+      AppColors.accent,
+    ];
+
+    final index = (strength - 1).clamp(0, 3);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: List.generate(4, (i) {
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+                height: 4,
+                decoration: BoxDecoration(
+                  color: i < strength ? colors[index] : AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Email pour la connexion et l'inscription
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'Ex: jean.dupont@example.com',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  validator: _validateEmail,
-                  enabled: !_isLoading,
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Téléphone
-                TextFormField(
-                  controller: _telephoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Téléphone *',
-                    hintText: 'Ex: 79 00 00 00',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.next,
-                  validator: _validateTelephone,
-                  enabled: !_isLoading,
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Mot de passe
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Mot de passe ',
-                    hintText: 'Au moins 8 caractères',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.next,
-                  validator: _validatePassword,
-                  enabled: !_isLoading,
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Confirmation mot de passe
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    labelText: 'Confirmer le mot de passe ',
-                    hintText: 'Retapez le mot de passe',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: _obscureConfirmPassword,
-                  textInputAction: TextInputAction.next,
-                  validator: _validateConfirmPassword,
-                  enabled: !_isLoading,
-                ),
-
-                const SizedBox(height: AppSizes.paddingXL),
-
-                // Section: Informations personnelles
-                Text(
-                  'Informations personnelles',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: AppSizes.paddingL),
-
-                // 💡 WIDGET : SÉLECTION DE PHOTO
-                Center(
-                  child: GestureDetector(
-                    onTap: _isLoading ? null : _pickAndSaveImage,
-                    child: Column(
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: AppColors.primary.withAlpha((0.1 * 255).round()),
-                          backgroundImage: _profileImagePath != null && File(_profileImagePath!).existsSync()
-                              ? FileImage(File(_profileImagePath!)) as ImageProvider
-                              : null,
-                          child: _profileImagePath == null
-                              ? const Icon(
-                                  Icons.camera_alt_rounded,
-                                  size: 40,
-                                  color: AppColors.primary,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: AppSizes.paddingS),
-                        Text(
-                          _profileImagePath == null
-                              ? 'Ajouter une photo (après connexion, dans le profil)'
-                              : 'Photo sélectionnée ✓ (sera modifiable dans le profil)',
-                          style: TextStyle(color: AppColors.primary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSizes.paddingXL),
-
-                // Nom complet
-                TextFormField(
-                  controller: _fullNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom complet ',
-                    hintText: 'Ex: Jean Dupont',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  validator: _validateFullName,
-                  enabled: !_isLoading,
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Rôle
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
-                  decoration: const InputDecoration(
-                    labelText: 'Rôle ',
-                    prefixIcon: Icon(Icons.badge_outlined),
-                  ),
-                  items: User.roleLabels.entries.map((entry) {
-                    return DropdownMenuItem(
-                      value: entry.key,
-                      child: Text(entry.value),
-                    );
-                  }).toList(),
-                  onChanged: _isLoading
-                      ? null
-                      : (value) {
-                            setState(() {
-                              _selectedRole = value!;
-                            });
-                          },
-                ),
-
-                const SizedBox(height: AppSizes.paddingXL),
-
-                // Note
-                // Row(
-                //   children: [
-                //     const Icon(
-                //       Icons.info_outline_rounded,
-                //       size: 16,
-                //       color: AppColors.textSecondary,
-                //     ),
-                //     const SizedBox(width: AppSizes.paddingS),
-                    // Text(
-                    //   '* Champs obligatoires',
-                    //   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    //         color: AppColors.textSecondary,
-                    //       ),
-                    // ),
-                //   ],
-                // ),
-
-                // const SizedBox(height: AppSizes.paddingL),
-
-                // Bouton Créer le compte
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _register,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.textOnPrimary,
-                            ),
-                          ),
-                        )
-                      : const Icon(Icons.check_rounded),
-                  label: Text(
-                    _isLoading ? 'Création en cours...' : 'Créer le compte',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-
-                const SizedBox(height: AppSizes.paddingM),
-
-                // Bouton Annuler
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                  label: const Text(
-                    'Annuler',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-
-                const SizedBox(height: AppSizes.paddingXL),
-              ],
-            ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Force : ${labels[index]}',
+          style: TextStyle(
+            fontSize: 11,
+            color: colors[index],
+            fontWeight: FontWeight.w500,
           ),
         ),
-      ),
+      ],
     );
   }
 }

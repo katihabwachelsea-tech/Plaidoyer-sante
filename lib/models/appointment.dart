@@ -110,6 +110,54 @@ class Appointment {
       serviceName: service?['nom_service']?.toString(),
     );
   }
+
+  Appointment copyWith({String? statut}) => Appointment(
+        id: id,
+        medecinId: medecinId,
+        patientUserId: patientUserId,
+        creneauId: creneauId,
+        motif: motif,
+        statut: statut ?? this.statut,
+        urgence: urgence,
+        piecesJointes: piecesJointes,
+        dateHeure: dateHeure,
+        montant: montant,
+        paymentRef: paymentRef,
+        patientNom: patientNom,
+        patientEmail: patientEmail,
+        patientTelephone: patientTelephone,
+        meetingUrl: meetingUrl,
+        serviceMode: serviceMode,
+        serviceName: serviceName,
+      );
+
+  /// Sérialisation cache SQLite (offline).
+  Map<String, dynamic> toCacheMap() => {
+        'id': id,
+        'medecin_id': medecinId,
+        'patient_user_id': patientUserId,
+        'creneau_id': creneauId,
+        'motif': motif,
+        'statut': statut,
+        'urgence': urgence,
+        'pieces_jointes': piecesJointes,
+        'date_heure': dateHeure.toIso8601String(),
+        'montant': montant,
+        'payment_ref': paymentRef,
+        'meeting_url': meetingUrl,
+        'patient_user': {
+          'nom': patientNom,
+          'email': patientEmail,
+          'telephone': patientTelephone,
+        },
+        'service': {
+          'mode': serviceMode,
+          'nom_service': serviceName,
+        },
+      };
+
+  factory Appointment.fromCacheMap(Map<String, dynamic> map) =>
+      Appointment.fromApiMap(map);
 }
 
 class Creneau {

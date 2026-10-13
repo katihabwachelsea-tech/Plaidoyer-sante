@@ -44,11 +44,13 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDatabase,
       onUpgrade: _onUpgradeDatabase,
       onOpen: (db) async {
         print('✅ Base de données ouverte avec succès');
+        await _createPendingSyncTable(db);
+        await _createAppointmentsCacheTable(db);
         // Vérifier le nombre de patients au démarrage
         final count = await db.rawQuery('SELECT COUNT(*) FROM $tableName');
         print(
@@ -118,6 +120,9 @@ class DatabaseService {
     // 💡 APPEL DE LA FONCTION : Insérer les conseils par défaut juste après la création de la table
     await insertInitialConseils(db);
 
+    await _createPendingSyncTable(db);
+    await _createAppointmentsCacheTable(db);
+
     // ✨ NOUVEAU : Table des sponsors
     await db.execute('''
 CREATE TABLE sponsors (
@@ -151,6 +156,11 @@ targetCountry TEXT
       await _createPendingSyncTable(db);
       print('✅ Migration v2 : server_id, updated_at, pending_sync');
     }
+    if (oldVersion < 3) {
+      await _createPendingSyncTable(db);
+      await _createAppointmentsCacheTable(db);
+      print('✅ Migration v3 : cache RDV + queue consultation');
+    }
   }
 
   Future<void> _createPendingSyncTable(Database db) async {
@@ -166,6 +176,18 @@ CREATE TABLE IF NOT EXISTS pending_sync (
 )
 ''');
     print('✅ Table pending_sync prête');
+  }
+
+  Future<void> _createAppointmentsCacheTable(Database db) async {
+    await db.execute('''
+CREATE TABLE IF NOT EXISTS cached_appointments (
+  id INTEGER PRIMARY KEY,
+  payload TEXT NOT NULL,
+  statut TEXT,
+  updated_at TEXT NOT NULL
+)
+''');
+    print('✅ Table cached_appointments prête');
   }
 
   // Données de test
@@ -514,20 +536,46 @@ CREATE TABLE IF NOT EXISTS pending_sync (
     required Patient patient,
     int? localId,
   }) async {
+    return enqueueRawSync(
+      entityType: 'patient',
+      entityId: localId ?? patient.id,
+      serverId: patient.serverId,
+      action: action,
+      payload: patient.toApiMap(),
+    );
+  }
+
+  Future<int> enqueueRawSync({
+    required String entityType,
+    required String action,
+    required Map<String, dynamic> payload,
+    int? entityId,
+    int? serverId,
+  }) async {
     final db = await database;
     return db.insert('pending_sync', {
-      'entity_type': 'patient',
-      'entity_id': localId ?? patient.id,
-      'server_id': patient.serverId,
+      'entity_type': entityType,
+      'entity_id': entityId,
+      'server_id': serverId,
       'action': action,
-      'payload': jsonEncode(patient.toApiMap()),
+      'payload': jsonEncode(payload),
       'created_at': DateTime.now().toIso8601String(),
     });
   }
 
-  Future<List<Map<String, dynamic>>> getPendingSyncItems() async {
+  Future<List<Map<String, dynamic>>> getPendingSyncItems({
+    String? entityType,
+  }) async {
     final db = await database;
-    return db.query('pending_sync', orderBy: 'created_at ASC');
+    if (entityType == null) {
+      return db.query('pending_sync', orderBy: 'created_at ASC');
+    }
+    return db.query(
+      'pending_sync',
+      where: 'entity_type = ?',
+      whereArgs: [entityType],
+      orderBy: 'created_at ASC',
+    );
   }
 
   Future<void> removePendingSyncItem(int queueId) async {
@@ -539,6 +587,60 @@ CREATE TABLE IF NOT EXISTS pending_sync (
     final db = await database;
     final result = await db.rawQuery('SELECT COUNT(*) FROM pending_sync');
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // ========== CACHE RDV MÉDECIN (offline) ==========
+
+  Future<void> replaceCachedAppointments(
+    List<Map<String, dynamic>> appointments,
+  ) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    await db.transaction((txn) async {
+      await txn.delete('cached_appointments');
+      for (final a in appointments) {
+        await txn.insert('cached_appointments', {
+          'id': a['id'],
+          'payload': jsonEncode(a),
+          'statut': a['statut']?.toString(),
+          'updated_at': now,
+        });
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getCachedAppointments() async {
+    final db = await database;
+    final rows = await db.query('cached_appointments', orderBy: 'id DESC');
+    return rows.map((r) {
+      final map = jsonDecode(r['payload'] as String) as Map<String, dynamic>;
+      if (r['statut'] != null) map['statut'] = r['statut'];
+      return map;
+    }).toList();
+  }
+
+  Future<void> updateCachedAppointmentStatut(int id, String statut) async {
+    final db = await database;
+    final rows = await db.query(
+      'cached_appointments',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final map =
+        jsonDecode(rows.first['payload'] as String) as Map<String, dynamic>;
+    map['statut'] = statut;
+    await db.update(
+      'cached_appointments',
+      {
+        'payload': jsonEncode(map),
+        'statut': statut,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   // ========== STATISTIQUES PATIENTS ==========

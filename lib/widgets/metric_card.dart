@@ -10,8 +10,8 @@ class AppConstants {
   static const String statsEndpoint = '/statistics';
 
   // Textes de l'application
-  static const String appName = 'Plaidoyer Santé';
-  static const String appSlogan = 'Vos soins, vos preuves.';
+  static const String appName = 'Mob-Clinic';
+  static const String appSlogan = 'Your Health in Your Pocket';
 }
 
 class AppColors {

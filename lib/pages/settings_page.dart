@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../widgets/metric_card.dart';
+import '../services/offline_sync_service.dart';
 import '../services/settings_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -539,12 +540,22 @@ class _SettingsPageState extends State<SettingsPage> {
               child: const Icon(Icons.cloud_download, color: AppColors.info),
             ),
             title: const Text('Synchroniser les données'),
-            subtitle: const Text('Mettre à jour depuis le serveur'),
+            subtitle: const Text(
+                'Push file hors ligne + mise à jour depuis le serveur'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              // TODO: Implémenter sync
+            onTap: () async {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Synchronisation...')),
+                const SnackBar(content: Text('Synchronisation…')),
+              );
+              final result =
+                  await OfflineSyncService.instance.syncNow(reason: 'settings');
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(result.message),
+                  backgroundColor:
+                      result.success ? AppColors.success : AppColors.error,
+                ),
               );
             },
           ),

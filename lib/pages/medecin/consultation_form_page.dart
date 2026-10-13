@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/appointment.dart';
 import '../../services/ai_chat_service.dart';
-import '../../services/medecin_api_service.dart';
+import '../../services/offline_sync_service.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/signature_pad.dart';
 import 'medecin_ui.dart';
@@ -337,23 +337,31 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
         anamneseParts.add(_soapSCtrl.text.trim());
       }
 
-      await MedecinApiService.instance.createConsultation(
-        rendezVousId:  widget.appointment.id,
-        diagnostic:    _diagnosticCtrl.text.trim(),
-        ordonnance:    ordonnanceTxt,
-        notes:         _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        anamnese:      anamneseParts.isEmpty ? null : anamneseParts.join('\n'),
-        examen:        _examenCtrl.text.trim().isEmpty ? null : _examenCtrl.text.trim(),
-        soapS: _soapSCtrl.text.trim().isEmpty ? null : _soapSCtrl.text.trim(),
-        soapO: constantes.isNotEmpty
-            ? constantes.entries.map((e) => '${e.key}: ${e.value}').join(' | ') : null,
-        soapA: _soapACtrl.text.trim().isEmpty ? null : _soapACtrl.text.trim(),
-        soapP: _soapPCtrl.text.trim().isEmpty ? null : _soapPCtrl.text.trim(),
-        constantesVitales: constantes.isNotEmpty ? constantes : null,
-        medicaments: _medicaments.map((m) => m.toMap()).toList(),
-        examensComplementaires: examens,
-        signatureBase64: sig,
+      final payload = <String, dynamic>{
+        'rendez_vous_id': widget.appointment.id,
+        'diagnostic': _diagnosticCtrl.text.trim(),
+        'ordonnance': ordonnanceTxt,
+        if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+        if (anamneseParts.isNotEmpty) 'anamnese': anamneseParts.join('\n'),
+        if (_examenCtrl.text.trim().isNotEmpty) 'examen': _examenCtrl.text.trim(),
+        if (_soapSCtrl.text.trim().isNotEmpty) 'soap_s': _soapSCtrl.text.trim(),
+        if (constantes.isNotEmpty)
+          'soap_o': constantes.entries.map((e) => '${e.key}: ${e.value}').join(' | '),
+        if (_soapACtrl.text.trim().isNotEmpty) 'soap_a': _soapACtrl.text.trim(),
+        if (_soapPCtrl.text.trim().isNotEmpty) 'soap_p': _soapPCtrl.text.trim(),
+        if (constantes.isNotEmpty) 'constantes_vitales': constantes,
+        'medicaments': _medicaments.map((m) => m.toMap()).toList(),
+        if (examens != null) 'examens_complementaires': examens,
+        'signature': sig,
+      };
+
+      // V.10.10 : si hors ligne → SQLite + file ; sinon push immédiat
+      final result = await OfflineSyncService.instance.saveConsultation(
+        payload: payload,
+        appointmentId: widget.appointment.id,
+        patientName: widget.appointment.patientDisplayName,
       );
+
       if (!mounted) return;
       await Navigator.pushReplacement(
         context,
@@ -362,6 +370,7 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
             patientName: widget.appointment.patientDisplayName,
             diagnostic:  _diagnosticCtrl.text.trim(),
             medicaments: _medicaments,
+            savedOffline: result == OfflineSaveResult.queued,
           ),
         ),
       );
@@ -1630,11 +1639,13 @@ class _ConsultationSuccessPage extends StatelessWidget {
   final String patientName;
   final String diagnostic;
   final List<_Medicament> medicaments;
+  final bool savedOffline;
 
   const _ConsultationSuccessPage({
     required this.patientName,
     required this.diagnostic,
     required this.medicaments,
+    this.savedOffline = false,
   });
 
   @override
@@ -1650,19 +1661,31 @@ class _ConsultationSuccessPage extends StatelessWidget {
               Container(
                 width: 80, height: 80,
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.15),
+                  color: (savedOffline ? AppColors.warning : AppColors.success)
+                      .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_rounded,
-                    size: 44, color: AppColors.success),
+                child: Icon(
+                  savedOffline
+                      ? Icons.cloud_off_rounded
+                      : Icons.check_rounded,
+                  size: 44,
+                  color: savedOffline ? AppColors.warning : AppColors.success,
+                ),
               ),
               const SizedBox(height: 20),
-              const Text('Consultation terminée',
-                  style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w800)),
+              Text(
+                savedOffline
+                    ? 'Enregistré hors ligne'
+                    : 'Consultation terminée',
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 10),
               Text(
-                'Le dossier de $patientName a été mis à jour.\nL\'ordonnance est disponible pour le patient.',
+                savedOffline
+                    ? 'La consultation de $patientName est sauvegardée sur cet appareil.\nElle sera synchronisée automatiquement dès le retour du réseau.'
+                    : 'Le dossier de $patientName a été mis à jour.\nL\'ordonnance est disponible pour le patient.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     color: AppColors.textSecondary, height: 1.4),
