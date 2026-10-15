@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
@@ -7,6 +9,7 @@ import '../widgets/join_tele_button.dart';
 import '../widgets/metric_card.dart';
 import 'doctors_list_page.dart';
 import 'patient/doctor_booking_page.dart';
+import 'patient/doctor_detail_page.dart';
 import 'patient/payment_page.dart';
 
 class PatientHomePage extends StatefulWidget {
@@ -21,8 +24,11 @@ class _PatientHomePageState extends State<PatientHomePage> {
 
   // Médecins
   List<dynamic> _doctors = [];
-  List<dynamic> _recommendedDoctors = [];
   bool _isLoading = false;
+  List<dynamic> _doctorSuggestions = [];
+  bool _isLoadingSuggestions = false;
+  int _searchRequestId = 0;
+  Timer? _searchDebounce;
   bool _showAllDoctors = false; // voir plus / voir moins
   static const int _doctorsPreviewCount = 5;
 
@@ -39,6 +45,7 @@ class _PatientHomePageState extends State<PatientHomePage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -54,7 +61,6 @@ class _PatientHomePageState extends State<PatientHomePage> {
         if (mounted) {
           setState(() {
             _doctors = list;
-            _recommendedDoctors = list;
           });
         }
       }
@@ -105,23 +111,48 @@ class _PatientHomePageState extends State<PatientHomePage> {
   // ── Recherche ────────────────────────────────────────────────────────────
 
   void _searchDoctors(String query) async {
-    if (query.isEmpty) {
-      _loadDoctors();
+    _searchDebounce?.cancel();
+    final requestId = ++_searchRequestId;
+    if (query.trim().isEmpty) {
+      setState(() {
+        _doctorSuggestions = [];
+        _isLoadingSuggestions = false;
+      });
+      await _loadDoctors();
       return;
     }
-    setState(() => _isLoading = true);
+    setState(() {
+      _doctorSuggestions = [];
+      _isLoadingSuggestions = true;
+      _isLoading = true;
+    });
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      _performDoctorSearch(query, requestId);
+    });
+  }
+
+  Future<void> _performDoctorSearch(String query, int requestId) async {
     try {
-      final result =
-          await AuthService.instance.fetchDoctors(searchQuery: query);
-      if (result['success'] == true && mounted) {
+      final result = await AuthService.instance.autocompleteDoctors(query);
+      if (result['success'] == true && mounted && requestId == _searchRequestId) {
         final list = result['doctors'] as List<dynamic>? ?? [];
         setState(() {
           _doctors = list;
-          _recommendedDoctors = list;
+          _doctorSuggestions = list.take(5).toList();
+        });
+      } else if (result['success'] != true && mounted &&
+          requestId == _searchRequestId) {
+        debugPrint('Erreur recherche médecins: ${result['message']}');
+      }
+    } catch (e) {
+      debugPrint('Erreur recherche médecins: $e');
+    } finally {
+      if (mounted && requestId == _searchRequestId) {
+        setState(() {
+          _isLoadingSuggestions = false;
+          _isLoading = false;
         });
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -170,6 +201,8 @@ class _PatientHomePageState extends State<PatientHomePage> {
               ),
               const SizedBox(height: 18),
               _buildSearchBar(),
+              if (_searchController.text.trim().isNotEmpty)
+                _buildDoctorSuggestions(),
               const SizedBox(height: 22),
               _sectionTitle('Prochains rendez-vous'),
               const SizedBox(height: 10),
@@ -216,7 +249,7 @@ class _PatientHomePageState extends State<PatientHomePage> {
                 icon: const Icon(Icons.close_rounded),
                 onPressed: () {
                   _searchController.clear();
-                  _loadDoctors();
+                  _searchDoctors('');
                 },
               )
             : null,
@@ -236,6 +269,52 @@ class _PatientHomePageState extends State<PatientHomePage> {
         setState(() {});
         _searchDoctors(value);
       },
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+    );
+  }
+
+  Widget _buildDoctorSuggestions() {
+    if (_isLoadingSuggestions) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: LinearProgressIndicator(minHeight: 2),
+      );
+    }
+    if (_doctorSuggestions.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: _doctorSuggestions.map((doctor) {
+          final map = Map<String, dynamic>.from(doctor as Map);
+          final user = map['user'];
+          final name = user is Map
+              ? (user['nom'] ?? 'Médecin').toString()
+              : (map['nom'] ?? 'Médecin').toString();
+          final specialty = (map['specialite'] ?? 'Médecin').toString();
+          final hospital = (map['hopital'] ?? '').toString();
+
+          return ListTile(
+            leading: const Icon(Icons.person_search, color: AppColors.primary),
+            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(
+              [specialty, if (hospital.isNotEmpty) hospital].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () {
+              FocusScope.of(context).unfocus();
+              _openDoctorDetails(map);
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _openDoctorDetails(Map<String, dynamic> doctor) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DoctorDetailPage(doctor: doctor)),
     );
   }
 

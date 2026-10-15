@@ -402,7 +402,7 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
           onPressed: _back,
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
+          preferredSize: const Size.fromHeight(64),
           child: _WizardStepper(step: _step, labels: _steps),
         ),
       ),
@@ -885,11 +885,10 @@ class _WizardStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Row(
         children: List.generate(labels.length * 2 - 1, (i) {
           if (i.isOdd) {
-            // Ligne entre steps
             final leftDone = i ~/ 2 < step;
             return Expanded(
               child: Container(
@@ -901,42 +900,49 @@ class _WizardStepper extends StatelessWidget {
           final idx = i ~/ 2;
           final done = idx < step;
           final current = idx == step;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: done || current ? Colors.white : Colors.white24,
-                ),
-                child: Center(
-                  child: done
-                      ? const Icon(Icons.check, size: 16,
-                          color: AppColors.primary)
-                      : Text(
-                          '${idx + 1}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: current
-                                ? AppColors.primary
-                                : Colors.white70,
+          return Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: done || current ? Colors.white : Colors.white24,
+                  ),
+                  child: Center(
+                    child: done
+                        ? const Icon(Icons.check,
+                            size: 14, color: AppColors.primary)
+                        : Text(
+                            '${idx + 1}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: current
+                                  ? AppColors.primary
+                                  : Colors.white70,
+                            ),
                           ),
-                        ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                labels[idx],
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight:
-                      current ? FontWeight.w700 : FontWeight.w400,
-                  color: current ? Colors.white : Colors.white60,
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    labels[idx],
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight:
+                          current ? FontWeight.w700 : FontWeight.w400,
+                      color: current ? Colors.white : Colors.white60,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }),
       ),

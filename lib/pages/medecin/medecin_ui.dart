@@ -35,14 +35,15 @@ class DoctorAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = name.trim().isEmpty
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .take(2)
+        .toList();
+    final initials = parts.isEmpty
         ? 'P'
-        : name
-            .trim()
-            .split(RegExp(r'\s+'))
-            .take(2)
-            .map((p) => p[0].toUpperCase())
-            .join();
+        : parts.map((p) => p.substring(0, 1).toUpperCase()).join();
 
     if (imageUrl != null && imageUrl!.startsWith('http')) {
       return CircleAvatar(

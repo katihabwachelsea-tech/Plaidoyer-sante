@@ -8,9 +8,9 @@ import '../../services/offline_sync_service.dart';
 import '../../widgets/join_tele_button.dart';
 import '../../widgets/metric_card.dart';
 import '../chat_page.dart';
-import 'consultation_form_page.dart';
 import 'medecin_ui.dart';
 import 'patient_dossier_page.dart';
+import 'safe_consultation_host.dart';
 
 class MedecinAppointmentsPage extends StatefulWidget {
   const MedecinAppointmentsPage({super.key});
@@ -230,36 +230,67 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
     }
   }
 
-  Future<void> _startConsultation(Appointment rdv) async {
-    if (!rdv.isToday) {
-      final label =
-          DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Consultation possible uniquement le jour du RDV ($label).'),
-        backgroundColor: AppColors.warning,
-      ));
-      return;
-    }
-    if (!rdv.canStartConsultation) {
-      final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
-      final mins = rdv.minutesUntilStart;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          'Trop tôt : la consultation commence à $heure'
-          '${mins > 0 ? ' (dans $mins min)' : ''}.',
-        ),
-        backgroundColor: AppColors.warning,
-      ));
-      return;
-    }
-    final done = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-          builder: (_) => ConsultationFormPage(appointment: rdv)),
+  Future<void> _showConsultInfo(String title, String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.info_outline_rounded, color: AppColors.warning),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Compris'),
+          ),
+        ],
+      ),
     );
-    if (done == true) _loadAppointments();
+  }
+
+  Future<void> _startConsultation(Appointment rdv) async {
+    try {
+      if (!rdv.isConfirme) {
+        await _showConsultInfo(
+          'Consultation indisponible',
+          'Ce rendez-vous n\'est pas encore confirmé (paiement requis).',
+        );
+        return;
+      }
+      if (!rdv.isToday) {
+        final label = DateFormat('EEEE d MMMM yyyy', 'fr_FR')
+            .format(rdv.dateHeure.toLocal());
+        await _showConsultInfo(
+          'Pas encore le jour J',
+          'La consultation ne peut démarrer que le jour du rendez-vous ($label).',
+        );
+        return;
+      }
+      if (!rdv.canStartConsultation) {
+        final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
+        final mins = rdv.minutesUntilStart;
+        await _showConsultInfo(
+          'Trop tôt pour consulter',
+          'L\'heure prévue est $heure.\n'
+          'Vous pourrez démarrer dans ${mins > 0 ? '$mins minute(s)' : 'quelques instants'} '
+          '(à partir de 5 min avant l\'heure).',
+        );
+        return;
+      }
+
+      final done = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SafeConsultationHost(appointment: rdv),
+        ),
+      );
+      if (done == true) _loadAppointments();
+    } catch (e) {
+      await _showConsultInfo(
+        'Impossible d\'ouvrir la consultation',
+        'Une erreur est survenue : $e',
+      );
+    }
   }
 
   void _openDossier(Appointment rdv) {
@@ -1059,21 +1090,28 @@ class _AppointmentCard extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed:
-                          appointment.canStartConsultation ? onConsult : onConsult,
+                      onPressed: onConsult,
                       style: FilledButton.styleFrom(
                         backgroundColor: appointment.canStartConsultation
                             ? AppColors.primary
-                            : AppColors.textSecondary,
+                            : AppColors.warning,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 10),
                       ),
-                      icon: Icon(appointment.canStartConsultation
-                          ? Icons.play_arrow_rounded
-                          : Icons.schedule_rounded),
-                      label: Text(
+                      icon: Icon(
                         appointment.canStartConsultation
-                            ? 'Commencer consultation'
-                            : 'À ${DateFormat('HH:mm').format(appointment.dateHeure.toLocal())}'
-                                '${appointment.minutesUntilStart > 0 ? ' (−${appointment.minutesUntilStart} min)' : ''}',
+                            ? Icons.play_arrow_rounded
+                            : Icons.schedule_rounded,
+                        size: 18,
+                      ),
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          appointment.canStartConsultation
+                              ? 'Commencer'
+                              : 'À ${DateFormat('HH:mm').format(appointment.dateHeure.toLocal())}',
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                   ),

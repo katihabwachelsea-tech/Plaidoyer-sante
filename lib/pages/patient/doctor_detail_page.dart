@@ -80,12 +80,13 @@ class DoctorDetailPage extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSizes.paddingM),
               child: DoctorModePriceChips(doctor: doctor),
             ),
-            if ((doctor['biographie'] ?? '').toString().trim().isNotEmpty)
-              _infoTile(
-                Icons.info_outline_rounded,
-                'À propos',
-                doctor['biographie'].toString(),
-              ),
+            _infoTile(
+              Icons.info_outline_rounded,
+              'Biographie',
+              (doctor['biographie'] ?? '').toString().trim().isEmpty
+                  ? 'Biographie non renseignée.'
+                  : doctor['biographie'].toString().trim(),
+            ),
             const SizedBox(height: AppSizes.paddingL),
             SizedBox(
               width: double.infinity,

@@ -8,9 +8,9 @@ import '../../services/offline_sync_service.dart';
 import '../../utils/doctor_photo.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/notification_bell.dart';
-import 'consultation_form_page.dart';
 import 'medecin_ui.dart';
 import 'patient_dossier_page.dart';
+import 'safe_consultation_host.dart';
 
 class MedecinHomePage extends StatefulWidget {
   final ValueChanged<int>? onOpenTab;
@@ -177,7 +177,6 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
   void _handleTodayTile(Appointment rdv) {
     switch (rdv.statut) {
       case 'En_attente':
-        // Afficher bottom sheet avec Accepter / Refuser
         showModalBottomSheet(
           context: context,
           backgroundColor: Colors.white,
@@ -195,17 +194,17 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
             },
           ),
         );
+        return;
       case 'Accepte':
-        // Informer que le patient n'a pas encore payé
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('En attente du paiement du patient.'),
-          backgroundColor: AppColors.info,
-        ));
+        _showConsultInfo(
+          'En attente de paiement',
+          'Le patient n\'a pas encore payé. La consultation sera disponible après confirmation du paiement.',
+        );
+        return;
       case 'Confirme':
-        // Ouvrir la consultation (uniquement le jour J — vérifié dans _openConsultation)
         _openConsultation(rdv);
+        return;
       case 'Termine':
-        // Consultation terminée → ouvrir le dossier patient
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -215,42 +214,65 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
             ),
           ),
         );
+        return;
       default:
-        break;
+        return;
     }
   }
 
-  Future<void> _openConsultation(Appointment rdv) async {
-    if (!rdv.isToday) {
-      final dateLabel = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Consultation possible uniquement le jour du RDV ($dateLabel).'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
-    if (!rdv.canStartConsultation) {
-      final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Trop tôt : démarrez à partir de $heure'
-            '${rdv.minutesUntilStart > 0 ? ' (encore ${rdv.minutesUntilStart} min)' : ''}.',
+  Future<void> _showConsultInfo(String title, String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.info_outline_rounded, color: AppColors.warning),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Compris'),
           ),
-          backgroundColor: AppColors.warning,
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openConsultation(Appointment rdv) async {
+    try {
+      if (!rdv.isToday) {
+        final dateLabel =
+            DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(rdv.dateHeure.toLocal());
+        await _showConsultInfo(
+          'Pas encore le jour J',
+          'La consultation ne peut démarrer que le jour du rendez-vous ($dateLabel).',
+        );
+        return;
+      }
+      if (!rdv.canStartConsultation) {
+        final heure = DateFormat('HH:mm').format(rdv.dateHeure.toLocal());
+        final mins = rdv.minutesUntilStart;
+        await _showConsultInfo(
+          'Trop tôt pour consulter',
+          'L\'heure prévue est $heure.\n'
+          'Vous pourrez démarrer dans ${mins > 0 ? '$mins minute(s)' : 'quelques instants'} '
+          '(à partir de 5 min avant l\'heure).',
+        );
+        return;
+      }
+      final done = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SafeConsultationHost(appointment: rdv),
         ),
       );
-      return;
+      if (done == true) _loadDashboard();
+    } catch (e) {
+      await _showConsultInfo(
+        'Impossible d\'ouvrir la consultation',
+        'Une erreur est survenue : $e',
+      );
     }
-    final done = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => ConsultationFormPage(appointment: rdv)),
-    );
-    if (done == true) _loadDashboard();
   }
 
   @override
@@ -528,9 +550,7 @@ class _TodayTile extends StatelessWidget {
       'Termine'    => ('Dossier patient', AppColors.primary),
       _            => ('Voir', AppColors.primary),
     };
-    final isDisabled = appointment.statut == 'Confirme' &&
-        (!appointment.isToday || !appointment.canStartConsultation);
-
+    // Toujours cliquable : si trop tôt / pas le jour J → dialogue informatif
     return MedecinCard(
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -583,10 +603,9 @@ class _TodayTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: isDisabled ? null : onTap,
+            onPressed: onTap,
             style: FilledButton.styleFrom(
               backgroundColor: btnColor,
-              disabledBackgroundColor: AppColors.border,
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 10),
             ),

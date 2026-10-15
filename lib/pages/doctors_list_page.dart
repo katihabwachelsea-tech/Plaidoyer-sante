@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../utils/doctor_photo.dart';
 import '../widgets/metric_card.dart';
 import 'patient/doctor_booking_page.dart';
+import 'patient/doctor_detail_page.dart';
 
 class DoctorsListPage extends StatefulWidget {
   final String? initialSpecialty;
@@ -59,21 +60,20 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
     List<dynamic> filtered = List<dynamic>.from(_allDoctors);
     if (_selectedSpecialty != null && _selectedSpecialty!.isNotEmpty) {
       filtered = filtered
-          .where((doc) =>
-              _specialtyMatches(doc['specialite']?.toString(), _selectedSpecialty!))
+          .where(
+            (doc) => _specialtyMatches(
+              doc['specialite']?.toString(),
+              _selectedSpecialty!,
+            ),
+          )
           .toList();
     }
     final q = _searchController.text.trim();
     if (q.isNotEmpty) {
       filtered = filtered.where((doc) {
-        final name =
-            (doc['user']?['nom'] ?? doc['nom'] ?? '').toString();
+        final name = (doc['user']?['nom'] ?? doc['nom'] ?? '').toString();
         final specialite = (doc['specialite'] ?? '').toString();
         final hopital = (doc['hopital'] ?? '').toString();
-        // Priorité spécialité : "Dermatologue" → seulement Dermatologie
-        if (_looksLikeSpecialtyQuery(q)) {
-          return _specialtyMatches(specialite, q);
-        }
         return _textContains(name, q) ||
             _specialtyMatches(specialite, q) ||
             _textContains(hopital, q);
@@ -85,7 +85,7 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
   /// Normalise accents / casse pour la comparaison.
   String _norm(String s) {
     const from = 'àâäáãåèéêëìíîïòóôöõùúûüýÿçñ';
-    const to   = 'aaaaaaeeeeiiiiooooouuuuyycn';
+    const to = 'aaaaaaeeeeiiiiooooouuuuyycn';
     var out = s.toLowerCase().trim();
     for (var i = 0; i < from.length; i++) {
       out = out.replaceAll(from[i], to[i]);
@@ -101,7 +101,14 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
         .replaceAll('medecin generaliste', 'generaliste');
     // Suffixes métier / discipline
     for (final suffix in [
-      'logue', 'logie', 'logiste', 'cien', 'cienne', 'iste', 'atre', 'atre'
+      'logue',
+      'logie',
+      'logiste',
+      'cien',
+      'cienne',
+      'iste',
+      'atre',
+      'atre',
     ]) {
       if (s.endsWith(suffix) && s.length > suffix.length + 3) {
         s = s.substring(0, s.length - suffix.length);
@@ -116,34 +123,28 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
     final a = _specialtyStem(doctorSpecialty);
     final b = _specialtyStem(query);
     if (a.isEmpty || b.isEmpty) return false;
-    return a.contains(b) || b.contains(a) || _norm(doctorSpecialty).contains(_norm(query));
+    return a.contains(b) ||
+        b.contains(a) ||
+        _norm(doctorSpecialty).contains(_norm(query));
   }
 
   bool _textContains(String haystack, String needle) =>
       _norm(haystack).contains(_norm(needle));
 
-  bool _looksLikeSpecialtyQuery(String q) {
-    final n = _norm(q);
-    if (n.length < 4) return false;
-    // Mots typiques de spécialité / métier médical
-    const hints = [
-      'dermato', 'cardio', 'pediatr', 'gyneco', 'ophtalmo', 'pneumo',
-      'neuro', 'ortho', 'uro', 'psychiatr', 'general', 'dentiste',
-      'chirurgie', 'radiolog', 'endocrin', 'gastro', 'rheumat',
-      'ologue', 'ologie', 'iste',
-    ];
-    return hints.any((h) => n.contains(h));
-  }
-
   void _onSpecialtyChanged(String? specialty) {
-    setState(() =>
-        _selectedSpecialty = specialty == _selectedSpecialty ? null : specialty);
+    setState(
+      () => _selectedSpecialty = specialty == _selectedSpecialty
+          ? null
+          : specialty,
+    );
     _applyFilters();
   }
 
   String _specialtyLabel(dynamic specialty) {
     if (specialty is Map) {
-      return (specialty['name'] ?? specialty['specialite'] ?? specialty['label'])
+      return (specialty['name'] ??
+                  specialty['specialite'] ??
+                  specialty['label'])
               ?.toString() ??
           'Spécialité';
     }
@@ -215,8 +216,10 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Nom, spécialité ou hôpital…',
-                      prefixIcon:
-                          const Icon(Icons.search, color: AppColors.primary),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.primary,
+                      ),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear),
@@ -233,7 +236,9 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                         borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
                     onChanged: (_) => _applyFilters(),
                   ),
@@ -246,8 +251,7 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _specialties.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: 8),
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (context, i) {
                           final name = _specialtyLabel(_specialties[i]);
                           final selected = _selectedSpecialty == name;
@@ -256,7 +260,9 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 6),
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: selected
                                     ? AppColors.primary
@@ -294,7 +300,8 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
           if (_isLoading)
             const SliverFillRemaining(
               child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary)),
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
             )
           else if (_doctors.isEmpty)
             SliverFillRemaining(
@@ -302,18 +309,27 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.person_search_rounded,
-                        size: 72,
-                        color: AppColors.textSecondary.withOpacity(0.4)),
+                    Icon(
+                      Icons.person_search_rounded,
+                      size: 72,
+                      color: AppColors.textSecondary.withOpacity(0.4),
+                    ),
                     const SizedBox(height: 16),
-                    const Text('Aucun médecin trouvé',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Aucun médecin trouvé',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    Text('Modifiez votre recherche ou filtre',
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary.withOpacity(0.7))),
+                    Text(
+                      'Modifiez votre recherche ou filtre',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary.withOpacity(0.7),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -323,13 +339,25 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _DoctorCard(doctor: _doctors[index], index: index),
+                  (context, index) => _DoctorCard(
+                    doctor: _doctors[index],
+                    index: index,
+                    onTap: () => _openDoctorDetails(_doctors[index]),
+                  ),
                   childCount: _doctors.length,
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  void _openDoctorDetails(dynamic doctor) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            DoctorDetailPage(doctor: Map<String, dynamic>.from(doctor as Map)),
       ),
     );
   }
@@ -339,8 +367,13 @@ class _DoctorsListPageState extends State<DoctorsListPage> {
 class _DoctorCard extends StatelessWidget {
   final dynamic doctor;
   final int index;
+  final VoidCallback onTap;
 
-  const _DoctorCard({required this.doctor, required this.index});
+  const _DoctorCard({
+    required this.doctor,
+    required this.index,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -351,171 +384,191 @@ class _DoctorCard extends StatelessWidget {
     final photoUrl = doctorPhotoUrl(doctor, index: index);
 
     // Note : on garde "Dr." uniquement si le nom ne commence pas déjà par Dr
-    final displayName =
-        name.toString().startsWith('Dr') ? name : 'Dr. $name';
+    final displayName = name.toString().startsWith('Dr') ? name : 'Dr. $name';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // ── Bandeau photo + infos ───────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Photo médecin
-                DoctorPhotoImage(
-                  url: photoUrl,
-                  width: 86,
-                  height: 96,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                const SizedBox(width: 14),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── Bandeau photo + infos ───────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Photo médecin
+                  DoctorPhotoImage(
+                    url: photoUrl,
+                    width: 86,
+                    height: 96,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  const SizedBox(width: 14),
 
-                // Infos texte
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName.toString(),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          specialite.toString(),
+                  // Infos texte
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName.toString(),
                           style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      if (hopital.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on_rounded,
-                                size: 13, color: AppColors.textSecondary),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                hopital.toString(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            specialite.toString(),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (hopital.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                size: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  hopital.toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.textSecondary),
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      DoctorModePriceChips(
-                        doctor: doctor is Map
-                            ? Map<String, dynamic>.from(doctor as Map)
-                            : {},
-                      ),
-                      if (disponibilite.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Icon(Icons.access_time_rounded,
-                                size: 13, color: AppColors.accent),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                disponibilite.toString(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.accent),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      // Badge "Prend en charge" style Doctolib
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_rounded,
-                              size: 13, color: AppColors.success),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Accepte de nouveaux patients',
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.success),
+                            ],
                           ),
                         ],
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        DoctorModePriceChips(
+                          doctor: doctor is Map
+                              ? Map<String, dynamic>.from(doctor as Map)
+                              : {},
+                        ),
+                        if (disponibilite.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 13,
+                                color: AppColors.accent,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  disponibilite.toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        // Badge "Prend en charge" style Doctolib
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.verified_rounded,
+                              size: 13,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'Accepte de nouveaux patients',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // ── Séparateur + bouton RDV ─────────────────────────
-          Divider(height: 1, color: AppColors.border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-            child: SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  final map = Map<String, dynamic>.from(doctor as Map);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => DoctorBookingPage(doctor: map)),
-                  );
-                },
-                icon: const Icon(Icons.calendar_month_rounded, size: 17),
-                label: const Text(
-                  'Prendre rendez-vous',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            // ── Séparateur + bouton RDV ─────────────────────────
+            Divider(height: 1, color: AppColors.border),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+              child: SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final map = Map<String, dynamic>.from(doctor as Map);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => DoctorBookingPage(doctor: map),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.calendar_month_rounded, size: 17),
+                  label: const Text(
+                    'Prendre rendez-vous',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

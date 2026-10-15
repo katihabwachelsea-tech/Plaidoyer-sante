@@ -36,7 +36,11 @@ class AuthService {
         body: jsonEncode({'email': email, 'password': password}),
       );
 
-      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+      ApiLogger.response(
+        url: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
       final data = json.decode(response.body);
 
       if (response.statusCode == 200 && data['status'] == true) {
@@ -84,7 +88,11 @@ class AuthService {
   }) async {
     final url = '$baseUrl/register';
     try {
-      ApiLogger.request(method: 'POST', url: url, body: {'email': email, 'nom': fullName, 'role': role});
+      ApiLogger.request(
+        method: 'POST',
+        url: url,
+        body: {'email': email, 'nom': fullName, 'role': role},
+      );
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -98,13 +106,19 @@ class AuthService {
           'nom': fullName,
           'telephone': telephone ?? '',
           'role': role,
-          if (profileImageUrl != null && profileImageUrl.isNotEmpty) 'profileImageUrl': profileImageUrl,
+          if (profileImageUrl != null && profileImageUrl.isNotEmpty)
+            'profileImageUrl': profileImageUrl,
         }),
       );
 
-      ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+      ApiLogger.response(
+        url: url,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
       final data = json.decode(response.body);
-      final isSuccess = response.statusCode == 200 || response.statusCode == 201;
+      final isSuccess =
+          response.statusCode == 200 || response.statusCode == 201;
 
       // Stocker le token immédiatement après l'inscription
       // pour que l'onboarding (complete-profile) puisse s'authentifier
@@ -182,7 +196,11 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      ApiLogger.response(url: endpoint, statusCode: response.statusCode, body: response.body);
+      ApiLogger.response(
+        url: endpoint,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
       final data = json.decode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -194,15 +212,13 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'message': data['message'] ?? 'Erreur lors de la complétion du profil',
+          'message':
+              data['message'] ?? 'Erreur lors de la complétion du profil',
         };
       }
     } catch (e) {
       ApiLogger.error(url: '$baseUrl/complete-profile', error: e);
-      return {
-        'success': false,
-        'message': 'Erreur : $e',
-      };
+      return {'success': false, 'message': 'Erreur : $e'};
     }
   }
 
@@ -237,10 +253,7 @@ class AuthService {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      final response = await http.get(
-        uriWithParams,
-        headers: headers,
-      );
+      final response = await http.get(uriWithParams, headers: headers);
 
       final data = json.decode(response.body);
 
@@ -254,15 +267,40 @@ class AuthService {
         return {
           'success': false,
           'doctors': [],
-          'message': data['message'] ?? 'Erreur lors de la récupération des médecins',
+          'message':
+              data['message'] ?? 'Erreur lors de la récupération des médecins',
         };
       }
     } catch (e) {
+      return {'success': false, 'doctors': [], 'message': 'Erreur: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> autocompleteDoctors(String query) async {
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+      final uri = Uri.parse(
+        '$baseUrl/patient/doctors/autocomplete',
+      ).replace(queryParameters: {'q': query.trim()});
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': '******',
+      };
+      final response = await http.get(uri, headers: headers);
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'doctors': data['data'] ?? []};
+      }
       return {
         'success': false,
         'doctors': [],
-        'message': 'Erreur: $e',
+        'message':
+            data['message'] ?? 'Erreur lors de la recherche des médecins',
       };
+    } catch (e) {
+      return {'success': false, 'doctors': [], 'message': 'Erreur: $e'};
     }
   }
 
@@ -293,11 +331,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'specialties': [],
-        'message': 'Erreur: $e',
-      };
+      return {'success': false, 'specialties': [], 'message': 'Erreur: $e'};
     }
   }
 
