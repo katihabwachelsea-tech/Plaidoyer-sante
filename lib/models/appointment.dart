@@ -185,6 +185,7 @@ class Creneau {
   final String heureDebut;
   final String heureFin;
   final bool disponible;
+  final bool generatedByWorkingTime;
 
   const Creneau({
     required this.id,
@@ -193,6 +194,7 @@ class Creneau {
     required this.heureDebut,
     required this.heureFin,
     required this.disponible,
+    this.generatedByWorkingTime = false,
   });
 
   factory Creneau.fromApiMap(Map<String, dynamic> map) {
@@ -205,6 +207,8 @@ class Creneau {
       heureDebut: map['heure_debut']?.toString().substring(0, 5) ?? '',
       heureFin: map['heure_fin']?.toString().substring(0, 5) ?? '',
       disponible: map['disponible'] == true || map['disponible'] == 1,
+      generatedByWorkingTime: map['generated_by_working_time'] == true ||
+          map['generated_by_working_time'] == 1,
     );
   }
 }

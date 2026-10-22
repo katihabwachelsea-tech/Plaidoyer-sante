@@ -490,18 +490,20 @@ CREATE TABLE IF NOT EXISTS cached_appointments (
   /// Remplace tout le cache local par les données du serveur (PULL)
   Future<void> replaceAllPatients(List<Patient> patients) async {
     final db = await database;
-    await db.delete(tableName);
-    for (final patient in patients) {
-      await db.insert(
-        tableName,
-        {
-          ...patient.toMap()..remove('id'),
-          'id': patient.serverId ?? patient.id,
-          'server_id': patient.serverId ?? patient.id,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
+    await db.transaction((txn) async {
+      await txn.delete(tableName);
+      for (final patient in patients) {
+        await txn.insert(
+          tableName,
+          {
+            ...patient.toMap()..remove('id'),
+            'id': patient.serverId ?? patient.id,
+            'server_id': patient.serverId ?? patient.id,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
     print('💾 ${patients.length} patients synchronisés en local');
   }
 
@@ -565,22 +567,56 @@ CREATE TABLE IF NOT EXISTS cached_appointments (
 
   Future<List<Map<String, dynamic>>> getPendingSyncItems({
     String? entityType,
+    int? entityId,
   }) async {
     final db = await database;
-    if (entityType == null) {
-      return db.query('pending_sync', orderBy: 'created_at ASC');
+    final where = <String>[];
+    final whereArgs = <Object>[];
+    if (entityType != null) {
+      where.add('entity_type = ?');
+      whereArgs.add(entityType);
     }
+    if (entityId != null) {
+      where.add('entity_id = ?');
+      whereArgs.add(entityId);
+    }
+
     return db.query(
       'pending_sync',
-      where: 'entity_type = ?',
-      whereArgs: [entityType],
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'created_at ASC',
+    );
+  }
+
+  Future<void> updatePendingSyncItemPayload(
+    int queueId,
+    Map<String, dynamic> payload,
+  ) async {
+    final db = await database;
+    await db.update(
+      'pending_sync',
+      {'payload': jsonEncode(payload)},
+      where: 'id = ?',
+      whereArgs: [queueId],
     );
   }
 
   Future<void> removePendingSyncItem(int queueId) async {
     final db = await database;
     await db.delete('pending_sync', where: 'id = ?', whereArgs: [queueId]);
+  }
+
+  Future<void> removePendingSyncItems({
+    required String entityType,
+    required int entityId,
+  }) async {
+    final db = await database;
+    await db.delete(
+      'pending_sync',
+      where: 'entity_type = ? AND entity_id = ?',
+      whereArgs: [entityType, entityId],
+    );
   }
 
   Future<int> getPendingSyncCount() async {

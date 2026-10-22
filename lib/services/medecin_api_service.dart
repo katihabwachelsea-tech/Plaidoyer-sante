@@ -183,6 +183,32 @@ class MedecinApiService {
         .toList();
   }
 
+  Future<Map<String, dynamic>> getWorkingTime() async {
+    final url = '$baseUrl/medecin/working-time';
+    final headers = await _headers();
+    ApiLogger.request(method: 'GET', url: url, headers: headers);
+    final response = await http.get(Uri.parse(url), headers: headers).timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+    final data = _decode(response);
+    return Map<String, dynamic>.from(data['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> saveWorkingTime(
+    Map<String, dynamic> schedule,
+  ) async {
+    final url = '$baseUrl/medecin/working-time';
+    final headers = await _headers();
+    ApiLogger.request(method: 'PUT', url: url, headers: headers, body: schedule);
+    final response = await http
+        .put(Uri.parse(url), headers: headers, body: jsonEncode(schedule))
+        .timeout(_timeout);
+    ApiLogger.response(url: url, statusCode: response.statusCode, body: response.body);
+    _checkStatus(response);
+    final data = _decode(response);
+    return Map<String, dynamic>.from(data['data'] as Map);
+  }
+
   Future<Creneau> createCreneau({
     required String date,
     required String heureDebut,

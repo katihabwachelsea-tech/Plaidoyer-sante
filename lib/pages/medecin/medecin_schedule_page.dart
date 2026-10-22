@@ -577,11 +577,15 @@ class _MedecinSchedulePageState extends State<MedecinSchedulePage> {
                                       fontWeight: FontWeight.w800,
                                       fontSize: 16)),
                               Text(
-                                c.disponible
-                                    ? 'Ouvert à la réservation'
-                                    : 'Déjà réservé',
+                                c.generatedByWorkingTime
+                                    ? 'Géré par les horaires hebdomadaires'
+                                    : c.disponible
+                                        ? 'Ouvert à la réservation'
+                                        : 'Déjà réservé',
                                 style: TextStyle(
-                                  color: c.disponible
+                                  color: c.generatedByWorkingTime
+                                      ? AppColors.info
+                                      : c.disponible
                                       ? AppColors.success
                                       : AppColors.warning,
                                   fontWeight: FontWeight.w600,
@@ -590,7 +594,7 @@ class _MedecinSchedulePageState extends State<MedecinSchedulePage> {
                               ),
                             ],
                           )),
-                          if (c.disponible) ...[
+                          if (c.disponible && !c.generatedByWorkingTime) ...[
                             IconButton(
                               tooltip: 'Modifier',
                               onPressed: () => _openEditSheet(c),

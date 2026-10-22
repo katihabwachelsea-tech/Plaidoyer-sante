@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../.."
+		},
+		{
+			"path": "../../../GitHub/waangu-doctor-kotlin"
 		}
 	],
 	"settings": {}

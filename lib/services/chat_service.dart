@@ -11,6 +11,8 @@ class ChatMessage {
   final String contenu;
   final int senderId;
   final String senderNom;
+  final String senderRole;
+  final String currentUserNom;
   final bool isMe;
   final bool lu;
   final DateTime createdAt;
@@ -20,22 +22,40 @@ class ChatMessage {
     required this.contenu,
     required this.senderId,
     required this.senderNom,
+    required this.senderRole,
+    required this.currentUserNom,
     required this.isMe,
     required this.lu,
     required this.createdAt,
   });
 
-  factory ChatMessage.fromMap(Map<String, dynamic> map) {
+  factory ChatMessage.fromMap(
+    Map<String, dynamic> map, {
+    required int currentUserId,
+    required String currentUserNom,
+  }) {
+    final senderId = _parseId(map['sender_id'], 'sender_id');
     return ChatMessage(
-      id:        map['id'] as int,
-      contenu:   map['contenu'] as String,
-      senderId:  map['sender_id'] as int,
+      id: _parseId(map['id'], 'id'),
+      contenu: map['contenu'] as String,
+      senderId: senderId,
       senderNom: map['sender_nom'] as String? ?? '',
-      isMe:      map['is_mine'] == true,
-      lu:        map['lu'] == true,
+      senderRole: map['sender_role'] as String? ?? '',
+      currentUserNom: currentUserNom,
+      isMe: senderId == currentUserId,
+      lu: map['lu'] == true,
       createdAt: DateTime.parse(
-          (map['created_at'] as String).replaceFirst(' ', 'T')),
+        (map['created_at'] as String).replaceFirst(' ', 'T'),
+      ),
     );
+  }
+
+  static int _parseId(dynamic value, String field) {
+    final id = value is int ? value : int.tryParse(value?.toString() ?? '');
+    if (id == null) {
+      throw FormatException('Identifiant $field manquant dans le message.');
+    }
+    return id;
   }
 }
 
@@ -49,7 +69,7 @@ class ChatService {
     final token = await _storage.read(key: AppConfig.keyJwtToken);
     return {
       'Content-Type': 'application/json',
-      'Accept':       'application/json',
+      'Accept': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
@@ -66,9 +86,17 @@ class ChatService {
     ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
 
     if (res.statusCode != 200) throw Exception('Erreur ${res.statusCode}');
-    final data = jsonDecode(res.body);
-    return (data['data'] as List)
-        .map((e) => ChatMessage.fromMap(Map<String, dynamic>.from(e as Map)))
+    final body = Map<String, dynamic>.from(jsonDecode(res.body) as Map);
+    final currentUser = _currentUser(body);
+    final data = body['data'] as List;
+    return data
+        .map(
+          (e) => ChatMessage.fromMap(
+            Map<String, dynamic>.from(e as Map),
+            currentUserId: currentUser.id,
+            currentUserNom: currentUser.nom,
+          ),
+        )
         .toList();
   }
 
@@ -79,8 +107,11 @@ class ChatService {
     ApiLogger.request(method: 'POST', url: url, body: {'contenu': contenu});
 
     final res = await http
-        .post(Uri.parse(url), headers: headers,
-            body: jsonEncode({'contenu': contenu}))
+        .post(
+          Uri.parse(url),
+          headers: headers,
+          body: jsonEncode({'contenu': contenu}),
+        )
         .timeout(AppConfig.defaultTimeout);
     ApiLogger.response(url: url, statusCode: res.statusCode, body: res.body);
 
@@ -88,9 +119,31 @@ class ChatService {
       final err = jsonDecode(res.body);
       throw Exception(err['message'] ?? 'Erreur envoi message');
     }
-    final data = jsonDecode(res.body);
+    final body = Map<String, dynamic>.from(jsonDecode(res.body) as Map);
+    final currentUser = _currentUser(body);
     return ChatMessage.fromMap(
-        Map<String, dynamic>.from(data['data'] as Map));
+      Map<String, dynamic>.from(body['data'] as Map),
+      currentUserId: currentUser.id,
+      currentUserNom: currentUser.nom,
+    );
+  }
+
+  ({int id, String nom}) _currentUser(Map<String, dynamic> body) {
+    final user = body['current_user'];
+    if (user is! Map) {
+      throw const FormatException(
+        'Le profil connecté est absent de la réponse de messagerie.',
+      );
+    }
+    final id = user['id'] is int
+        ? user['id'] as int
+        : int.tryParse(user['id']?.toString() ?? '');
+    if (id == null) {
+      throw const FormatException(
+        'L’identifiant du profil connecté est invalide.',
+      );
+    }
+    return (id: id, nom: user['nom']?.toString() ?? '');
   }
 
   /// Nombre de messages non lus pour ce RDV.

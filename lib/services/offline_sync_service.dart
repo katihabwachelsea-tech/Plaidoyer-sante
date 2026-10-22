@@ -153,6 +153,27 @@ class OfflineSyncService {
       final hybrid = await _hybrid.syncAll();
       await refreshPendingCount();
 
+      if (pendingCount.value > 0) {
+        return OfflineSyncResult(
+          success: false,
+          online: true,
+          message:
+              'Sync partielle — ${pendingCount.value} élément(s) restent en attente. '
+              '${hybrid.message}',
+          consultationsPushed: consultationsPushed,
+          patientsPushed: hybrid.pendingPushed,
+        );
+      }
+      if (!hybrid.success) {
+        return OfflineSyncResult(
+          success: false,
+          online: true,
+          message: hybrid.message,
+          consultationsPushed: consultationsPushed,
+          patientsPushed: hybrid.pendingPushed,
+        );
+      }
+
       final msg =
           'Sync OK ($reason) — $consultationsPushed consultation(s), '
           '${hybrid.pendingPushed} patient(s)';

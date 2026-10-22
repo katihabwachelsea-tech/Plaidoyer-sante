@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../models/patient.dart';
 import '../services/sync_service_hybrid.dart';
 import '../widgets/metric_card.dart';
-import '../services/db_service.dart';
 
 class AddPatientPage extends StatefulWidget {
   final Patient? patient; // Pour l'édition (null si nouveau patient)
@@ -540,8 +539,7 @@ class _AddPatientPageState extends State<AddPatientPage> {
     });
 
     try {
-      final dbService = DatabaseService.instance;
-      await dbService.deletePatient(widget.patient!.id!);
+      await SyncServiceHybrid.instance.deletePatient(widget.patient!.id!);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

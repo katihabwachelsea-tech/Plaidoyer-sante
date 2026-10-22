@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import '../../config/app_config.dart';
 import '../../services/prescription_pdf_service.dart';
 import '../../widgets/metric_card.dart';
+import '../patient/health_history_page.dart';
 import 'medecin_ui.dart';
 
 class PatientDossierPage extends StatefulWidget {
@@ -52,25 +53,43 @@ class _PatientDossierPageState extends State<PatientDossierPage>
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final token = await _storage.read(key: AppConfig.keyJwtToken);
-      final url = '${AppConfig.baseUrl}/medecin/patients/${widget.patientId}/dossier';
-      final res = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(AppConfig.defaultTimeout);
+      final url =
+          '${AppConfig.baseUrl}/medecin/patients/${widget.patientId}/dossier';
+      final res = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(AppConfig.defaultTimeout);
       final body = jsonDecode(res.body);
       if (res.statusCode == 200 && body['status'] == true) {
-        if (mounted) setState(() { _data = body['data']; _loading = false; });
+        if (mounted)
+          setState(() {
+            _data = body['data'];
+            _loading = false;
+          });
       } else {
-        if (mounted) setState(() { _error = body['message'] ?? 'Erreur'; _loading = false; });
+        if (mounted)
+          setState(() {
+            _error = body['message'] ?? 'Erreur';
+            _loading = false;
+          });
       }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
     }
   }
 
@@ -79,14 +98,15 @@ class _PatientDossierPageState extends State<PatientDossierPage>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Dossier Patient'),
+        title: Text(
+          'Dossier médical de ${widget.patientNom}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-          ),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
         ],
         bottom: TabBar(
           controller: _tabCtrl,
@@ -94,7 +114,10 @@ class _PatientDossierPageState extends State<PatientDossierPage>
           indicatorWeight: 3,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
           tabs: const [
             Tab(text: 'Résumé'),
             Tab(text: 'Ordonnances'),
@@ -103,17 +126,23 @@ class _PatientDossierPageState extends State<PatientDossierPage>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _error != null
-              ? _ErrorView(error: _error!, onRetry: _load)
-              : TabBarView(
-                  controller: _tabCtrl,
-                  children: [
-                    _ResumeTab(data: _data!),
-                    _OrdonnancesTab(historique: _data!['historique'] as List? ?? []),
-                    _ConsultationsTab(historique: _data!['historique'] as List? ?? []),
-                  ],
+          ? _ErrorView(error: _error!, onRetry: _load)
+          : TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _ResumeTab(data: _data!),
+                _OrdonnancesTab(
+                  historique: _data!['historique'] as List? ?? [],
                 ),
+                _ConsultationsTab(
+                  historique: _data!['historique'] as List? ?? [],
+                ),
+              ],
+            ),
     );
   }
 }
@@ -125,11 +154,11 @@ class _PatientHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nom           = (profil['nom'] ?? '').toString();
-    final tel           = (profil['telephone'] ?? '').toString();
-    final groupe        = (profil['groupe_sanguin'] ?? '').toString();
-    final maladie       = (profil['maladie'] ?? '').toString();
-    final antecedents   = (profil['antecedents'] ?? '').toString();
+    final nom = (profil['nom'] ?? '').toString();
+    final tel = (profil['telephone'] ?? '').toString();
+    final groupe = (profil['groupe_sanguin'] ?? '').toString();
+    final maladie = (profil['maladie'] ?? '').toString();
+    final antecedents = (profil['antecedents'] ?? '').toString();
 
     // Âge depuis date_naissance
     String age = '';
@@ -160,8 +189,10 @@ class _PatientHeader extends StatelessWidget {
             child: Text(
               nom.isNotEmpty ? nom[0].toUpperCase() : 'P',
               style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w800,
-                  color: AppColors.primary),
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primary,
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -169,12 +200,17 @@ class _PatientHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nom,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800)),
+                Text(
+                  nom,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Wrap(
-                  spacing: 6, runSpacing: 4,
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
                     if (age.isNotEmpty) _Chip(age, AppColors.success),
                     if (groupe.isNotEmpty) _Chip(groupe, AppColors.error),
@@ -183,17 +219,35 @@ class _PatientHeader extends StatelessWidget {
                 ),
                 if (tel.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.phone_rounded, size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(tel, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  ]),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.phone_rounded,
+                        size: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        tel,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
                 if (antecedents.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text('Antécédents : $antecedents',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(
+                    'Antécédents : $antecedents',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ],
             ),
@@ -218,8 +272,14 @@ class _Chip extends StatelessWidget {
         borderRadius: BorderRadius.circular(99),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Text(label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -231,8 +291,8 @@ class _ResumeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profil      = data['profil'] as Map<String, dynamic>? ?? {};
-    final constantes  = data['dernieres_constantes'] as Map<String, dynamic>?;
+    final profil = data['profil'] as Map<String, dynamic>? ?? {};
+    final constantes = data['dernieres_constantes'] as Map<String, dynamic>?;
     final consultDate = data['derniere_consult_date']?.toString() ?? '';
     final medicaments = data['medicaments'] as List? ?? [];
 
@@ -253,21 +313,32 @@ class _ResumeTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (consultDate.isNotEmpty) ...[
-                  Row(children: [
-                    const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      _fmt(consultDate),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.primary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '· Dernière mesure · ${constantes.length} constante(s)',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ]),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _fmt(consultDate),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '· Dernière mesure · ${constantes.length} constante(s)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                 ],
                 GridView.count(
@@ -283,7 +354,11 @@ class _ResumeTab extends StatelessWidget {
                     if (constantes['pouls'] != null)
                       _VitaleCard('${constantes['pouls']}', 'bpm', 'Pouls'),
                     if (constantes['temperature'] != null)
-                      _VitaleCard('${constantes['temperature']}', '°C', 'Temp.'),
+                      _VitaleCard(
+                        '${constantes['temperature']}',
+                        '°C',
+                        'Temp.',
+                      ),
                     if (constantes['poids'] != null)
                       _VitaleCard('${constantes['poids']}', 'kg', 'Poids'),
                     if (constantes['taille'] != null)
@@ -322,14 +397,21 @@ class _ResumeTab extends StatelessWidget {
                 child: Row(
                   children: [
                     Container(
-                      width: 30, height: 30,
+                      width: 30,
+                      height: 30,
                       decoration: const BoxDecoration(
-                          color: AppColors.primary, shape: BoxShape.circle),
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
                       child: Center(
-                        child: Text('${i + 1}',
-                            style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.w800,
-                                fontSize: 13)),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -343,12 +425,18 @@ class _ResumeTab extends StatelessWidget {
                             '${(m['frequence']?.toString().isNotEmpty ?? false) ? ' · ${m['frequence']}' : ''}'
                             '${(m['duree']?.toString().isNotEmpty ?? false) ? ' · ${m['duree']} ${m['unite_duree'] ?? ''}' : ''}',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: 13),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                           if (m['prescrit_le'] != null)
-                            Text('Prescrit le ${m['prescrit_le']}',
-                                style: const TextStyle(
-                                    fontSize: 11, color: AppColors.textSecondary)),
+                            Text(
+                              'Prescrit le ${m['prescrit_le']}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -365,8 +453,10 @@ class _ResumeTab extends StatelessWidget {
 
   static String _fmt(String raw) {
     try {
-      return DateFormat('d MMM yyyy · HH:mm', 'fr_FR')
-          .format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+      return DateFormat(
+        'd MMM yyyy · HH:mm',
+        'fr_FR',
+      ).format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
     } catch (_) {
       return raw;
     }
@@ -390,16 +480,30 @@ class _VitaleCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w800,
-                  color: AppColors.primary)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(unit,
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            unit,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -423,10 +527,19 @@ class _OrdonnancesTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.medication_outlined, size: 56, color: AppColors.textLight),
+            Icon(
+              Icons.medication_outlined,
+              size: 56,
+              color: AppColors.textLight,
+            ),
             SizedBox(height: 12),
-            Text('Aucune ordonnance',
-                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+            Text(
+              'Aucune ordonnance',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       );
@@ -445,10 +558,14 @@ class _OrdonnancesTab extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(dateLabel,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary)),
+            Text(
+              dateLabel,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 6),
             Container(
               margin: const EdgeInsets.only(bottom: 16),
@@ -470,34 +587,51 @@ class _OrdonnancesTab extends StatelessWidget {
                           color: AppColors.ice,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.medical_services_rounded,
-                            color: AppColors.primary, size: 20),
+                        child: const Icon(
+                          Icons.medical_services_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(rxNum,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800, fontSize: 15)),
-                            Text('${meds.length} médicament(s)',
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textSecondary)),
+                            Text(
+                              rxNum,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              '${meds.length} médicament(s)',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.success.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: const Text('Signé',
-                            style: TextStyle(
-                                fontSize: 11, fontWeight: FontWeight.w700,
-                                color: AppColors.success)),
+                        child: const Text(
+                          'Signé',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -512,17 +646,24 @@ class _OrdonnancesTab extends StatelessWidget {
                           CircleAvatar(
                             radius: 11,
                             backgroundColor: AppColors.primary,
-                            child: Text('${j + 1}',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10, fontWeight: FontWeight.w800)),
+                            child: Text(
+                              '${j + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               '${m['nom'] ?? '—'}'
                               '${(m['dosage']?.toString().isNotEmpty ?? false) ? ' — ${m['dosage']} ${m['unite'] ?? ''}' : ''}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
@@ -585,20 +726,30 @@ class _OrdonnancesTab extends StatelessWidget {
 
   static String _fmtDate(String raw) {
     try {
-      return DateFormat('yyyy-MM-dd', 'fr_FR')
-          .format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+      return DateFormat(
+        'yyyy-MM-dd',
+        'fr_FR',
+      ).format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
     } catch (_) {
       return raw.substring(0, raw.length > 10 ? 10 : raw.length);
     }
   }
 
   void _showConsultDetail(BuildContext context, Map<String, dynamic> h) {
-    showModalBottomSheet(
+    if (h['appointment'] is Map) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ConsultationDetailPage(record: h)),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => _ConsultDetailSheet(h: h),
     );
   }
@@ -616,10 +767,19 @@ class _ConsultationsTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open_rounded, size: 56, color: AppColors.textLight),
+            Icon(
+              Icons.folder_open_rounded,
+              size: 56,
+              color: AppColors.textLight,
+            ),
             SizedBox(height: 12),
-            Text('Aucune consultation enregistrée',
-                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+            Text(
+              'Aucune consultation enregistrée',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       );
@@ -630,22 +790,26 @@ class _ConsultationsTab extends StatelessWidget {
       itemCount: historique.length,
       itemBuilder: (_, i) {
         final h = historique[i] as Map<String, dynamic>;
-        final dateRaw  = h['date_consultation']?.toString() ?? '';
-        final dateDay  = _fmtDay(dateRaw);
+        final dateRaw = h['date_consultation']?.toString() ?? '';
+        final dateDay = _fmtDay(dateRaw);
         final dateTime = _fmtTime(dateRaw);
-        final diag     = (h['diagnostic'] ?? '').toString();
-        final motif    = (h['motif'] ?? '').toString();
-        final medecin  = (h['medecin'] ?? '').toString();
-        final service  = (h['service'] ?? '').toString();
-        final soap     = (h['soap_a'] ?? h['anamnese'] ?? '').toString();
+        final diag = (h['diagnostic'] ?? '').toString();
+        final motif = (h['motif'] ?? '').toString();
+        final medecin = (h['medecin'] ?? '').toString();
+        final service = (h['service'] ?? '').toString();
+        final soap = (h['soap_a'] ?? h['anamnese'] ?? '').toString();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(dateDay,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary)),
+            Text(
+              dateDay,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 6),
             InkWell(
               onTap: () => _showConsultDetail(context, h),
@@ -667,8 +831,11 @@ class _ConsultationsTab extends StatelessWidget {
                         color: AppColors.ice,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.folder_rounded,
-                          color: AppColors.primary, size: 22),
+                      child: const Icon(
+                        Icons.folder_rounded,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -678,50 +845,71 @@ class _ConsultationsTab extends StatelessWidget {
                           Text(
                             diag.isNotEmpty ? diag : 'Consultation',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 14),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (motif.isNotEmpty) ...[
                             const SizedBox(height: 3),
-                            Text('Motif : $motif',
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textSecondary)),
+                            Text(
+                              'Motif : $motif',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                           if (soap.isNotEmpty) ...[
                             const SizedBox(height: 3),
-                            Text(soap,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textSecondary)),
+                            Text(
+                              soap,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.person_outline, size: 13,
-                                  color: AppColors.textSecondary),
+                              const Icon(
+                                Icons.person_outline,
+                                size: 13,
+                                color: AppColors.textSecondary,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   medecin.isNotEmpty ? 'Dr. $medecin' : service,
                                   style: const TextStyle(
-                                      fontSize: 11, color: AppColors.textSecondary),
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               if (dateTime.isNotEmpty)
-                                Text(dateTime,
-                                    style: const TextStyle(
-                                        fontSize: 11, color: AppColors.textLight)),
+                                Text(
+                                  dateTime,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textLight,
+                                  ),
+                                ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded,
-                        color: AppColors.textLight),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textLight,
+                    ),
                   ],
                 ),
               ),
@@ -734,8 +922,10 @@ class _ConsultationsTab extends StatelessWidget {
 
   static String _fmtDay(String raw) {
     try {
-      return DateFormat('yyyy-MM-dd', 'fr_FR')
-          .format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+      return DateFormat(
+        'yyyy-MM-dd',
+        'fr_FR',
+      ).format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
     } catch (_) {
       return raw.substring(0, raw.length > 10 ? 10 : raw.length);
     }
@@ -743,20 +933,30 @@ class _ConsultationsTab extends StatelessWidget {
 
   static String _fmtTime(String raw) {
     try {
-      return DateFormat('HH:mm', 'fr_FR')
-          .format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+      return DateFormat(
+        'HH:mm',
+        'fr_FR',
+      ).format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
     } catch (_) {
       return '';
     }
   }
 
   void _showConsultDetail(BuildContext context, Map<String, dynamic> h) {
-    showModalBottomSheet(
+    if (h['appointment'] is Map) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ConsultationDetailPage(record: h)),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => _ConsultDetailSheet(h: h),
     );
   }
@@ -775,14 +975,14 @@ class _ConsultDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final diag    = h['diagnostic']?.toString() ?? '—';
+    final diag = h['diagnostic']?.toString() ?? '—';
     final ordoTxt = h['ordonnance']?.toString() ?? '';
-    final soapS   = h['soap_s']?.toString() ?? '';
-    final soapO   = h['soap_o']?.toString() ?? '';
-    final soapA   = h['soap_a']?.toString() ?? '';
-    final soapP   = h['soap_p']?.toString() ?? '';
-    final meds    = h['medicaments'] as List? ?? [];
-    final exams   = h['examens_complementaires'] as List? ?? [];
+    final soapS = h['soap_s']?.toString() ?? '';
+    final soapO = h['soap_o']?.toString() ?? '';
+    final soapA = h['soap_a']?.toString() ?? '';
+    final soapP = h['soap_p']?.toString() ?? '';
+    final meds = h['medicaments'] as List? ?? [];
+    final exams = h['examens_complementaires'] as List? ?? [];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
@@ -796,10 +996,12 @@ class _ConsultDetailSheet extends StatelessWidget {
             padding: const EdgeInsets.only(top: 12, bottom: 8),
             child: Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(99)),
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
             ),
           ),
@@ -808,24 +1010,34 @@ class _ConsultDetailSheet extends StatelessWidget {
               controller: ctrl,
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
               children: [
-                const Text('Détail de la consultation',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                const Text(
+                  'Détail de la consultation',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                ),
                 const SizedBox(height: 16),
 
                 // SOAP
-                if (soapS.isNotEmpty) _soapRow('S', soapS, const Color(0xFF8E44AD)),
-                if (soapO.isNotEmpty) _soapRow('O', soapO, const Color(0xFF2980B9)),
-                if (soapA.isNotEmpty) _soapRow('A', soapA, const Color(0xFFE67E22)),
-                if (soapP.isNotEmpty) _soapRow('P', soapP, const Color(0xFF27AE60)),
+                if (soapS.isNotEmpty)
+                  _soapRow('S', soapS, const Color(0xFF8E44AD)),
+                if (soapO.isNotEmpty)
+                  _soapRow('O', soapO, const Color(0xFF2980B9)),
+                if (soapA.isNotEmpty)
+                  _soapRow('A', soapA, const Color(0xFFE67E22)),
+                if (soapP.isNotEmpty)
+                  _soapRow('P', soapP, const Color(0xFF27AE60)),
 
                 // Diagnostic
                 _block('Diagnostic', diag, accent: true),
 
                 // Médicaments
                 if (meds.isNotEmpty) ...[
-                  const Text('Médicaments prescrits',
-                      style: TextStyle(fontWeight: FontWeight.w700,
-                          color: AppColors.primary)),
+                  const Text(
+                    'Médicaments prescrits',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   ...meds.map((m) {
                     final med = m as Map<String, dynamic>;
@@ -844,25 +1056,36 @@ class _ConsultDetailSheet extends StatelessWidget {
 
                 // Examens
                 if (exams.isNotEmpty) ...[
-                  const Text('Examens complémentaires',
-                      style: TextStyle(fontWeight: FontWeight.w700,
-                          color: AppColors.primary)),
+                  const Text(
+                    'Examens complémentaires',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Wrap(
-                    spacing: 6, runSpacing: 6,
+                    spacing: 6,
+                    runSpacing: 6,
                     children: exams.map((e) {
                       final ex = e as Map<String, dynamic>;
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.ice,
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Text(ex['nom']?.toString() ?? '',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.primary,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          ex['nom']?.toString() ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       );
                     }).toList(),
                   ),
@@ -874,7 +1097,11 @@ class _ConsultDetailSheet extends StatelessWidget {
                   _block('Ordonnance', ordoTxt),
 
                 // Notes du médecin
-                if ((h['notes'] ?? h['conseils_ia'])?.toString().trim().isNotEmpty == true)
+                if ((h['notes'] ?? h['conseils_ia'])
+                        ?.toString()
+                        .trim()
+                        .isNotEmpty ==
+                    true)
                   _block(
                     'Notes du médecin',
                     (h['notes'] ?? h['conseils_ia']).toString(),
@@ -882,9 +1109,13 @@ class _ConsultDetailSheet extends StatelessWidget {
 
                 // Signature
                 if ((h['signature_path']?.toString() ?? '').isNotEmpty) ...[
-                  const Text('Signature du médecin',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  const Text(
+                    'Signature du médecin',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -913,8 +1144,10 @@ class _ConsultDetailSheet extends StatelessWidget {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Erreur PDF : $e'),
-                              backgroundColor: AppColors.error),
+                          SnackBar(
+                            content: Text('Erreur PDF : $e'),
+                            backgroundColor: AppColors.error,
+                          ),
                         );
                       }
                     }
@@ -941,13 +1174,18 @@ class _ConsultDetailSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 26, height: 26,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             child: Center(
-              child: Text(letter,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w900,
-                      fontSize: 12)),
+              child: Text(
+                letter,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -977,10 +1215,14 @@ class _ConsultDetailSheet extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: AppColors.primary,
-                  fontSize: 12)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(body, style: const TextStyle(fontSize: 13, height: 1.4)),
         ],
@@ -1010,10 +1252,14 @@ class _SectionTitle extends StatelessWidget {
             child: Icon(icon, size: 16, color: AppColors.primary),
           ),
           const SizedBox(width: 8),
-          Text(label,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 16,
-                  color: AppColors.navy)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: AppColors.navy,
+            ),
+          ),
         ],
       ),
     );

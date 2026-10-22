@@ -55,6 +55,19 @@ class SyncServiceHybrid {
     try {
       await _ensureAuthToken();
       final pushed = await _pushPendingChanges();
+      final pendingPatients = await _db.getPendingSyncItems(
+        entityType: 'patient',
+      );
+      if (pendingPatients.isNotEmpty) {
+        return HybridSyncResult(
+          success: false,
+          online: true,
+          message:
+              '${pendingPatients.length} modification(s) patient non synchronisée(s) — cache local conservé',
+          pendingPushed: pushed,
+        );
+      }
+
       final patients = await ApiService.fetchPatients();
       await _db.replaceAllPatients(patients);
       lastSyncAt = DateTime.now();
@@ -95,18 +108,30 @@ class SyncServiceHybrid {
             );
             if (localId != null && created.syncId != null) {
               await _db.updatePatientServerId(localId, created.syncId!);
+            } else {
+              throw StateError(
+                'Le serveur n’a pas retourné l’identifiant patient',
+              );
             }
             break;
           case 'update':
-            if (serverId != null) {
-              await ApiService.updatePatient(serverId, payload);
+            if (serverId == null) {
+              throw StateError(
+                'Identifiant serveur manquant pour la mise à jour',
+              );
             }
+            await ApiService.updatePatient(serverId, payload);
             break;
           case 'delete':
-            if (serverId != null) {
-              await ApiService.deletePatient(serverId);
+            if (serverId == null) {
+              throw StateError(
+                'Identifiant serveur manquant pour la suppression',
+              );
             }
+            await ApiService.deletePatient(serverId);
             break;
+          default:
+            throw StateError('Action de synchronisation inconnue : $action');
         }
 
         await _db.removePendingSyncItem(item['id'] as int);
@@ -168,12 +193,33 @@ class SyncServiceHybrid {
   Future<int> updatePatient(Patient patient) async {
     final rows = await _db.updatePatient(patient);
     final online = await isOnline();
-    final syncId = patient.syncId;
 
-    if (online && syncId != null) {
+    final localId = patient.id;
+    if (patient.serverId == null && localId != null) {
+      final pending = await _db.getPendingSyncItems(
+        entityType: 'patient',
+        entityId: localId,
+      );
+      Map<String, dynamic>? createItem;
+      for (final item in pending) {
+        if (item['action'] == 'create') {
+          createItem = item;
+          break;
+        }
+      }
+      if (createItem != null) {
+        await _db.updatePendingSyncItemPayload(
+          createItem['id'] as int,
+          patient.toApiMap(),
+        );
+        return rows;
+      }
+    }
+
+    if (online && patient.serverId != null) {
       try {
         await _ensureAuthToken();
-        await ApiService.updatePatient(syncId, patient.toApiMap());
+        await ApiService.updatePatient(patient.serverId!, patient.toApiMap());
         return rows;
       } catch (e) {
         print('⚠️ Push update échoué, mise en queue: $e');
@@ -190,27 +236,40 @@ class SyncServiceHybrid {
 
   Future<int> deletePatient(int id) async {
     final patient = await _db.getPatientById(id);
-    final rows = await _db.deletePatient(id);
-    final online = await isOnline();
-    final syncId = patient?.syncId;
+    if (patient == null) return 0;
 
-    if (online && syncId != null) {
+    if (patient.serverId == null) {
+      final pending = await _db.getPendingSyncItems(
+        entityType: 'patient',
+        entityId: id,
+      );
+      final hasPendingCreate = pending.any(
+        (item) => item['action'] == 'create',
+      );
+      if (hasPendingCreate) {
+        await _db.removePendingSyncItems(entityType: 'patient', entityId: id);
+        return _db.deletePatient(id);
+      }
+    }
+
+    final online = await isOnline();
+    final rows = await _db.deletePatient(id);
+
+    if (online && patient.serverId != null) {
       try {
         await _ensureAuthToken();
-        await ApiService.deletePatient(syncId);
+        await ApiService.deletePatient(patient.serverId!);
         return rows;
       } catch (e) {
         print('⚠️ Push delete échoué, mise en queue: $e');
       }
     }
 
-    if (patient != null) {
-      await _db.enqueueSync(
-        action: 'delete',
-        patient: patient,
-        localId: id,
-      );
-    }
+    await _db.enqueueSync(
+      action: 'delete',
+      patient: patient,
+      localId: id,
+    );
     return rows;
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/offline_sync_service.dart';
 import '../../widgets/metric_card.dart';
+import '../messages_list_page.dart';
 import 'medecin_appointments_page.dart';
 import 'medecin_home_page.dart';
 import 'medecin_profile_page.dart';
@@ -24,6 +25,7 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
     _pages = [
       MedecinHomePage(onOpenTab: _openTab),
       const MedecinAppointmentsPage(),
+      const MessagesListPage(),
       const MedecinSchedulePage(),
       const MedecinProfilePage(),
     ];
@@ -145,6 +147,11 @@ class _MedecinNavigationState extends State<MedecinNavigation> {
             selectedIcon:
                 Icon(Icons.event_available_rounded, color: AppColors.primary),
             label: 'RDV',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline_rounded),
+            selectedIcon: Icon(Icons.chat_bubble_rounded, color: AppColors.primary),
+            label: 'Messages',
           ),
           NavigationDestination(
             icon: Icon(Icons.schedule_outlined),

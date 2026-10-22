@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/appointment.dart';
 import '../../services/ai_chat_service.dart';
+import '../../services/consultation_draft_service.dart';
 import '../../services/offline_sync_service.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/signature_pad.dart';
@@ -179,6 +180,121 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
   // ── Spécialité du médecin (pour les examens) ─────────────────────────────
   String? get _specialite => widget.appointment.serviceName;
 
+  // ── Draft service ─────────────────────────────────────────────────────────
+  final _draft = ConsultationDraftService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndLoadDraft();
+  }
+
+  // ── Gestion du brouillon ─────────────────────────────────────────────────
+
+  /// Vérifie si un brouillon existe au démarrage et propose de le reprendre.
+  Future<void> _checkAndLoadDraft() async {
+    final hasDraft = await _draft.hasDraft(widget.appointment.id);
+    if (!hasDraft || !mounted) return;
+
+    final resume = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.restore_page_rounded,
+            color: AppColors.primary, size: 36),
+        title: const Text('Brouillon trouvé'),
+        content: const Text(
+          'Vous avez une consultation en cours pour ce patient.\n'
+          'Voulez-vous reprendre là où vous vous étiez arrêté ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Recommencer'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary),
+            child: const Text('Reprendre'),
+          ),
+        ],
+      ),
+    );
+
+    if (resume == true) {
+      await _restoreDraft();
+    } else {
+      await _draft.clear(widget.appointment.id);
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    final data = await _draft.load(widget.appointment.id);
+    if (data == null || !mounted) return;
+    setState(() {
+      _step = data.step;
+      _allergiesCtrl.text  = data.allergies;
+      _soapSCtrl.text      = data.soapS;
+      _taCtrl.text         = data.ta;
+      _poulsCtrl.text      = data.pouls;
+      _tempCtrl.text       = data.temp;
+      _poidsCtrl.text      = data.poids;
+      _tailleCtrl.text     = data.taille;
+      _spo2Ctrl.text       = data.spo2;
+      _soapACtrl.text      = data.soapA;
+      _soapPCtrl.text      = data.soapP;
+      _examenCtrl.text     = data.examen;
+      _selectedExams..clear()..addAll(data.selectedExams);
+      _motifCtrl.text      = data.motif;
+      _diagnosticCtrl.text = data.diagnostic;
+      _notesCtrl.text      = data.notes;
+      _medicaments.clear();
+      for (final m in data.medicaments) {
+        _medicaments.add(_Medicament(
+          nom:          m['nom']?.toString()          ?? '',
+          type:         m['type']?.toString()         ?? 'Comprimé',
+          generique:    m['generique']?.toString()    ?? '',
+          dosage:       m['dosage']?.toString()       ?? '',
+          unite:        m['unite']?.toString()        ?? 'mg',
+          frequence:    m['frequence']?.toString()    ?? '1x par jour',
+          prise:        m['prise']?.toString()        ?? 'Après les repas',
+          duree:        m['duree']?.toString()        ?? '',
+          uniteDuree:   m['unite_duree']?.toString()  ?? 'jours',
+          instructions: m['instructions']?.toString() ?? '',
+        ));
+      }
+    });
+  }
+
+  Future<void> _saveDraft() async {
+    await _draft.save(
+      appointmentId: widget.appointment.id,
+      step:          _step,
+      allergies:     _allergiesCtrl.text,
+      soapS:         _soapSCtrl.text,
+      ta:            _taCtrl.text,
+      pouls:         _poulsCtrl.text,
+      temp:          _tempCtrl.text,
+      poids:         _poidsCtrl.text,
+      taille:        _tailleCtrl.text,
+      spo2:          _spo2Ctrl.text,
+      soapA:         _soapACtrl.text,
+      soapP:         _soapPCtrl.text,
+      examen:        _examenCtrl.text,
+      selectedExams: _selectedExams.toList(),
+      motif:         _motifCtrl.text,
+      diagnostic:    _diagnosticCtrl.text,
+      notes:         _notesCtrl.text,
+      medicaments:   _medicaments.map((m) => m.toMap()).toList(),
+    );
+  }
+
+  Future<void> _clearDraft() async =>
+      _draft.clear(widget.appointment.id);
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   @override
   void dispose() {
     _allergiesCtrl.dispose();
@@ -296,11 +412,13 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
   void _next() {
     if (!_validateStep()) return;
     setState(() => _step++);
+    _saveDraft(); // Sauvegarde automatique à chaque avancement
   }
 
   void _back() {
     if (_step == 0) { Navigator.pop(context); return; }
     setState(() => _step--);
+    _saveDraft(); // Sauvegarde aussi au retour en arrière
   }
 
   // ── Soumission ───────────────────────────────────────────────────────────
@@ -363,6 +481,8 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
       );
 
       if (!mounted) return;
+      // Brouillon supprimé après soumission réussie
+      await _clearDraft();
       await Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -591,7 +711,7 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
       children: [
         Row(
           children: [
-            Expanded(child: _vitaleField('TA (mmHg)', _taCtrl, '120/80')),
+            Expanded(child: _vitaleField('TA (mmHg)', _taCtrl, '120/80', allowSlash: true)),
             const SizedBox(width: 10),
             Expanded(child: _vitaleField('Pouls (bpm)', _poulsCtrl, '72')),
             const SizedBox(width: 10),
@@ -612,10 +732,13 @@ class _ConsultationFormPageState extends State<ConsultationFormPage> {
     );
   }
 
-  Widget _vitaleField(String label, TextEditingController ctrl, String hint) {
+  Widget _vitaleField(String label, TextEditingController ctrl, String hint, {bool allowSlash = false}) {
     return TextField(
       controller: ctrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      // TA (mmHg) nécessite le '/' → clavier texte ; autres → clavier numérique
+      keyboardType: allowSlash
+          ? TextInputType.text
+          : const TextInputType.numberWithOptions(decimal: true),
       textAlign: TextAlign.center,
       decoration: InputDecoration(
         labelText: label,

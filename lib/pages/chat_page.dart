@@ -12,11 +12,13 @@ import '../widgets/metric_card.dart';
 class ChatPage extends StatefulWidget {
   final int appointmentId;
   final String otherName; // Nom de l'interlocuteur (Dr. X ou Nom patient)
+  final String otherRole;
 
   const ChatPage({
     super.key,
     required this.appointmentId,
     required this.otherName,
+    this.otherRole = '',
   });
 
   @override
@@ -24,13 +26,14 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final _service    = ChatService.instance;
+  final _service = ChatService.instance;
   final _controller = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _inputFocus = FocusNode();
 
   List<ChatMessage> _messages = [];
-  bool _loading  = true;
-  bool _sending  = false;
+  bool _loading = true;
+  bool _sending = false;
   String? _error;
   Timer? _pollTimer;
 
@@ -39,10 +42,7 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _load();
     // Polling toutes les 5 secondes
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _poll(),
-    );
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
   }
 
   @override
@@ -50,22 +50,31 @@ class _ChatPageState extends State<ChatPage> {
     _pollTimer?.cancel();
     _controller.dispose();
     _scrollCtrl.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final msgs = await _service.getMessages(widget.appointmentId);
       if (mounted) {
         setState(() {
           _messages = msgs;
-          _loading  = false;
+          _loading = false;
         });
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -75,8 +84,8 @@ class _ChatPageState extends State<ChatPage> {
       final msgs = await _service.getMessages(widget.appointmentId);
       if (!mounted) return;
       // Rafraîchir aussi si le statut lu change (✓ → ✓✓)
-      final changed = msgs.length != _messages.length ||
-          !_sameReadState(msgs, _messages);
+      final changed =
+          msgs.length != _messages.length || !_sameReadState(msgs, _messages);
       if (changed) {
         final grew = msgs.length > _messages.length;
         setState(() => _messages = msgs);
@@ -137,20 +146,56 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary, Color(0xFF0A5E9A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              widget.otherName,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              child: Text(
+                _initials(_displayOtherName),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
             ),
-            const Text(
-              'Messagerie RDV',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _displayOtherName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Text(
+                    'Conversation liée au rendez-vous',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -164,8 +209,39 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: Column(
         children: [
+          _buildConversationNotice(),
           Expanded(child: _buildMessages()),
           _buildInput(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationNotice() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.event_note_rounded, color: AppColors.primary, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Échangez au sujet de votre rendez-vous. '
+              'Les nouveaux messages se chargent automatiquement.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.3,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -174,7 +250,8 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildMessages() {
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
     if (_error != null) {
       return Center(
@@ -189,19 +266,51 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
     if (_messages.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline_rounded,
-                size: 64, color: AppColors.textLight),
-            SizedBox(height: 12),
-            Text(
-              'Aucun message pour l\'instant.\nEnvoyez le premier !',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.09),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.forum_rounded,
+                  size: 38,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Votre conversation commence ici',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Envoyez un message pour échanger avec '
+                '${widget.otherName} au sujet du rendez-vous.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () =>
+                    FocusScope.of(context).requestFocus(_inputFocus),
+                icon: const Icon(Icons.edit_rounded, size: 16),
+                label: const Text('Écrire le premier message'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -212,11 +321,9 @@ class _ChatPageState extends State<ChatPage> {
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         final msg = _messages[index];
-        final showDate = index == 0 ||
-            !_isSameDay(
-              _messages[index - 1].createdAt,
-              msg.createdAt,
-            );
+        final showDate =
+            index == 0 ||
+            !_isSameDay(_messages[index - 1].createdAt, msg.createdAt);
         return Column(
           children: [
             if (showDate) _buildDateSeparator(msg.createdAt),
@@ -239,7 +346,9 @@ class _ChatPageState extends State<ChatPage> {
             child: Text(
               label,
               style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary),
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           const Expanded(child: Divider()),
@@ -249,8 +358,12 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildBubble(ChatMessage msg) {
-    final isMe  = msg.isMe;
-    final time  = DateFormat('HH:mm').format(msg.createdAt);
+    final isMe = msg.isMe;
+    final time = DateFormat('HH:mm').format(msg.createdAt);
+    final senderLabel = isMe
+        ? 'Vous · ${msg.currentUserNom}'
+        : '${_roleLabel(msg.senderRole.isEmpty ? widget.otherRole : msg.senderRole)} · '
+              '${msg.senderNom.isEmpty ? _displayOtherName : _formatName(msg.senderNom, msg.senderRole)}';
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -264,9 +377,9 @@ class _ChatPageState extends State<ChatPage> {
           decoration: BoxDecoration(
             color: isMe ? AppColors.primary : Colors.white,
             borderRadius: BorderRadius.only(
-              topLeft:     const Radius.circular(18),
-              topRight:    const Radius.circular(18),
-              bottomLeft:  Radius.circular(isMe ? 18 : 4),
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isMe ? 18 : 4),
               bottomRight: Radius.circular(isMe ? 4 : 18),
             ),
             boxShadow: [
@@ -278,21 +391,23 @@ class _ChatPageState extends State<ChatPage> {
             ],
           ),
           child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
-              if (!isMe)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    msg.senderNom,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary.withValues(alpha: 0.8),
-                    ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  senderLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.8)
+                        : AppColors.primary.withValues(alpha: 0.8),
                   ),
                 ),
+              ),
               Text(
                 msg.contenu,
                 style: TextStyle(
@@ -317,9 +432,7 @@ class _ChatPageState extends State<ChatPage> {
                   if (isMe) ...[
                     const SizedBox(width: 4),
                     Icon(
-                      msg.lu
-                          ? Icons.done_all_rounded
-                          : Icons.done_rounded,
+                      msg.lu ? Icons.done_all_rounded : Icons.done_rounded,
                       size: 13,
                       color: msg.lu
                           ? Colors.white
@@ -337,11 +450,10 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildInput() {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.07),
@@ -356,18 +468,21 @@ class _ChatPageState extends State<ChatPage> {
           children: [
             Expanded(
               child: TextField(
+                focusNode: _inputFocus,
                 controller: _controller,
                 maxLines: 4,
                 minLines: 1,
+                enabled: !_sending,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: 'Écrire un message…',
-                  hintStyle:
-                      const TextStyle(color: AppColors.textLight),
+                  hintStyle: const TextStyle(color: AppColors.textLight),
                   filled: true,
                   fillColor: AppColors.background,
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
@@ -393,10 +508,15 @@ class _ChatPageState extends State<ChatPage> {
                     ? const Padding(
                         padding: EdgeInsets.all(10),
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Icon(Icons.send_rounded,
-                        color: Colors.white, size: 20),
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
               ),
             ),
           ],
@@ -407,4 +527,29 @@ class _ChatPageState extends State<ChatPage> {
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    return parts.take(2).map((part) => part[0].toUpperCase()).join();
+  }
+
+  String _roleLabel(String role) => switch (role) {
+    'patient' => 'Patient',
+    'medecin' => 'Médecin',
+    _ => 'Interlocuteur',
+  };
+
+  String get _displayOtherName =>
+      _formatName(widget.otherName, widget.otherRole);
+
+  String _formatName(String name, String role) {
+    final alreadyHasTitle = RegExp(
+      r'^(dr\.?|docteur)\b',
+      caseSensitive: false,
+    ).hasMatch(name.trim());
+    if (role != 'medecin' || alreadyHasTitle) {
+      return name;
+    }
+    return 'Dr. $name';
+  }
 }

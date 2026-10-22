@@ -89,10 +89,17 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
       // bouton actif uniquement le jour J, sinon affiché grisé avec la date
       case 'confirme':
         final confirmed = _appointments
-            .where((a) => a.isConfirme || a.isTermine)
+            .where((a) => a.isConfirme)
             .toList()
           ..sort((a, b) => a.dateHeure.compareTo(b.dateHeure));
         return confirmed;
+      case 'termine':
+        // Consultations terminées — triées du plus récent au plus ancien
+        final termine = _appointments
+            .where((a) => a.isTermine)
+            .toList()
+          ..sort((a, b) => b.dateHeure.compareTo(a.dateHeure));
+        return termine;
       case 'today':
         return _appointments
             .where((a) => sameDay(a.dateHeure.toLocal(), now))
@@ -216,17 +223,14 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
   }
 
   Future<void> _scheduleDoctorReminders(List<Appointment> list) async {
-    for (final rdv in list) {
-      if (!rdv.isConfirme) continue;
-      if (rdv.dateHeure.toLocal().isBefore(DateTime.now())) continue;
-      try {
-        await LocalReminderService.instance.scheduleForDoctorAppointment(
-          appointmentId: rdv.id,
-          dateRdv: rdv.dateHeure,
-          patientName: rdv.patientDisplayName,
-          motif: rdv.motif.isEmpty ? 'Consultation' : rdv.motif,
-        );
-      } catch (_) {}
+    try {
+      await LocalReminderService.instance.syncDoctorAppointments(list);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Impossible de synchroniser les rappels : $e'),
+        backgroundColor: AppColors.warning,
+      ));
     }
   }
 
@@ -381,11 +385,21 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                   child: Row(
                     children: [
                       _Chip(
-                        label: 'RDV payés',
+                        label: 'Confirmés',
                         selected: _filter == 'confirme',
                         color: AppColors.primary,
                         onTap: () => setState(() {
                           _filter = 'confirme';
+                          _showAll = false;
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      _Chip(
+                        label: 'Terminés',
+                        selected: _filter == 'termine',
+                        color: const Color(0xFF7C3AED),
+                        onTap: () => setState(() {
+                          _filter = 'termine';
                           _showAll = false;
                         }),
                       ),
@@ -457,17 +471,23 @@ class _MedecinAppointmentsPageState extends State<MedecinAppointmentsPage> {
                         ? Icons.check_circle_outline_rounded
                         : _filter == 'confirme'
                             ? Icons.event_available_rounded
-                            : Icons.event_busy_rounded,
+                            : _filter == 'termine'
+                                ? Icons.folder_shared_rounded
+                                : Icons.event_busy_rounded,
                     title: _filter == 'pending'
                         ? 'Aucune demande en attente'
                         : _filter == 'confirme'
                             ? 'Aucun RDV payé pour l\'instant'
-                            : 'Aucun rendez-vous ici',
+                            : _filter == 'termine'
+                                ? 'Aucune consultation terminée'
+                                : 'Aucun rendez-vous ici',
                     subtitle: _filter == 'pending'
                         ? 'Toutes les demandes ont été traitées.'
                         : _filter == 'confirme'
                             ? 'Les RDV confirmés (payés) par les patients apparaîtront ici.'
-                            : 'Les RDV confirmés et payés apparaissent ici.',
+                            : _filter == 'termine'
+                                ? 'Les consultations effectuées apparaîtront ici avec accès au dossier patient.'
+                                : 'Les RDV confirmés et payés apparaissent ici.',
                   ),
                 ),
               )
@@ -821,6 +841,7 @@ class _PendingCard extends StatelessWidget {
                 builder: (_) => ChatPage(
                   appointmentId: appointment.id,
                   otherName: appointment.patientDisplayName,
+                  otherRole: 'patient',
                 ),
               ),
             ),
@@ -1014,25 +1035,27 @@ class _AppointmentCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          // Bouton Messagerie
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ChatPage(
-                  appointmentId: appointment.id,
-                  otherName: appointment.patientDisplayName,
+          // ── Bouton Messagerie (sauf Terminé) ─────────────────────────────
+          if (!appointment.isTermine)
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatPage(
+                    appointmentId: appointment.id,
+                    otherName: appointment.patientDisplayName,
+                    otherRole: 'patient',
+                  ),
                 ),
               ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+              label: const Text('Message'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                minimumSize: const Size(double.infinity, 42),
+              ),
             ),
-            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-            label: const Text('Message'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary),
-              minimumSize: const Size(double.infinity, 42),
-            ),
-          ),
-          const SizedBox(height: 10),
+          if (!appointment.isTermine) const SizedBox(height: 10),
           // ── Bouton Consulter ou message d'état ──────────────────────────
           if (appointment.isAccepted) ...[
             // RDV accepté mais patient n'a pas encore payé

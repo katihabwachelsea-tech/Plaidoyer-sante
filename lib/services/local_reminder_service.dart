@@ -8,20 +8,25 @@
 //   • H-30min      — "Dans 30 minutes"
 //   • H-15min      — "Dans 15 minutes"
 //   Médecin (offset +20) :
-//   • H-1, H-30, H-15 — pour ne pas oublier le RDV
+//   • H-24, H-1, H-15 et suivi 30 min après le RDV
 //
 // IDs : appointmentId * 100 + index
 //   1=J-1, 2=H-2, 3=H-1, 4=H-15, 5=snooze, 6=H-30 (patient)
-//   21=H-1, 22=H-30, 23=H-15 (médecin)
+//   20=H-24, 21=H-1, 22=ancien H-30, 23=H-15, 24=suivi médecin
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../models/appointment.dart';
+
 class LocalReminderService {
   LocalReminderService._();
   static final LocalReminderService instance = LocalReminderService._();
+
+  static const bool _testMode =
+      bool.fromEnvironment('REMINDER_TEST_MODE', defaultValue: false);
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -148,7 +153,7 @@ class LocalReminderService {
     }
   }
 
-  /// Rappels médecin : H-1, H-30, H-15 pour ne pas oublier le RDV.
+  /// Rappels médecin : 24 h, 1 h et 15 min avant, puis un suivi à +30 min.
   Future<void> scheduleForDoctorAppointment({
     required int appointmentId,
     required DateTime dateRdv,
@@ -156,34 +161,139 @@ class LocalReminderService {
     required String motif,
   }) async {
     await init();
+    await _cancelDoctorReminders(appointmentId);
+
     final local = dateRdv.toLocal();
     final now = DateTime.now();
-    final body = '$patientName · $motif';
+    for (final reminder in doctorReminderPlan(
+      dateRdv: local,
+      patientName: patientName,
+      now: now,
+    )) {
+      await _schedule(
+        id: _nid(appointmentId, reminder.slot),
+        when: reminder.when,
+        title: reminder.title,
+        body: '$patientName · $motif',
+        withActions: false,
+      );
+    }
+  }
 
-    final slots = <(int, Duration, String)>[
-      (21, const Duration(hours: 1), 'Dans 1 heure — RDV avec $patientName'),
-      (22, const Duration(minutes: 30), 'Dans 30 min — RDV avec $patientName'),
-      (23, const Duration(minutes: 15), 'Dans 15 min — préparez la consultation'),
-    ];
+  /// Reconcile les rappels locaux avec les rendez-vous actuellement confirmés.
+  Future<void> syncDoctorAppointments(List<Appointment> appointments) async {
+    await init();
+    final now = DateTime.now();
+    final expectedNotificationIds = <int>{};
 
-    for (final (slot, before, title) in slots) {
-      final when = local.subtract(before);
-      if (when.isAfter(now)) {
-        await _schedule(
-          id: _nid(appointmentId, slot),
-          when: when,
-          title: '🩺 $title',
-          body: body,
-          withActions: false,
+    for (final appointment in appointments) {
+      if (appointment.isConfirme &&
+          appointment.dateHeure
+              .toLocal()
+              .add(const Duration(minutes: 30))
+              .isAfter(now)) {
+        final plan = doctorReminderPlan(
+          dateRdv: appointment.dateHeure.toLocal(),
+          patientName: appointment.patientDisplayName,
+          now: now,
         );
+        expectedNotificationIds.addAll(
+          plan.map((reminder) => _nid(appointment.id, reminder.slot)),
+        );
+        await scheduleForDoctorAppointment(
+          appointmentId: appointment.id,
+          dateRdv: appointment.dateHeure,
+          patientName: appointment.patientDisplayName,
+          motif: appointment.motif.isEmpty ? 'Consultation' : appointment.motif,
+        );
+      } else {
+        await _cancelDoctorReminders(appointment.id);
       }
     }
+
+    final pending = await _plugin.pendingNotificationRequests();
+    for (final notification in pending) {
+      final slot = notification.id % 100;
+      if (_doctorReminderSlots.contains(slot) &&
+          !expectedNotificationIds.contains(notification.id)) {
+        await _plugin.cancel(notification.id);
+      }
+    }
+  }
+
+  static const Set<int> _doctorReminderSlots = {20, 21, 22, 23, 24};
+
+  static List<({int slot, DateTime when, String title})> doctorReminderPlan({
+    required DateTime dateRdv,
+    required String patientName,
+    required DateTime now,
+    bool testMode = _testMode,
+  }) {
+    final date = dateRdv.toLocal();
+
+    if (testMode) {
+      if (!date.isAfter(now)) return const [];
+      return [
+        (
+          slot: 20,
+          when: now.add(const Duration(seconds: 30)),
+          title: '🩺 Rappel J-1 — RDV avec $patientName',
+        ),
+        (
+          slot: 21,
+          when: now.add(const Duration(seconds: 20)),
+          title: '🩺 Dans 1 heure — RDV avec $patientName',
+        ),
+        (
+          slot: 23,
+          when: now.add(const Duration(seconds: 10)),
+          title: '🩺 Dans 15 min — préparez la consultation',
+        ),
+        (
+          slot: 24,
+          when: now.add(const Duration(seconds: 40)),
+          title: '🩺 Suivi du rendez-vous avec $patientName',
+        ),
+      ];
+    }
+
+    final reminders = <({int slot, DateTime when, String title})>[];
+    final candidates = <(int, Duration, String)>[
+      (20, const Duration(hours: 24), '🩺 Rappel — RDV demain avec $patientName'),
+      (21, const Duration(hours: 1), '🩺 Dans 1 heure — RDV avec $patientName'),
+      (23, const Duration(minutes: 15), '🩺 Dans 15 min — préparez la consultation'),
+    ];
+
+    if (date.isAfter(now)) {
+      for (final (slot, before, title) in candidates) {
+        final when = date.subtract(before);
+        if (when.isAfter(now)) {
+          reminders.add((slot: slot, when: when, title: title));
+        }
+      }
+    }
+
+    final followUp = date.add(const Duration(minutes: 30));
+    if (followUp.isAfter(now)) {
+      reminders.add((
+        slot: 24,
+        when: followUp,
+        title: '🩺 Suivi du rendez-vous avec $patientName',
+      ));
+    }
+    return reminders;
   }
 
   /// Annule tous les rappels d'un RDV (patient + médecin).
   Future<void> cancelForAppointment(int appointmentId) async {
     await init();
-    for (final slot in [1, 2, 3, 4, 5, 6, 21, 22, 23]) {
+    for (final slot in [1, 2, 3, 4, 5, 6, 20, 21, 22, 23, 24]) {
+      await _plugin.cancel(_nid(appointmentId, slot));
+    }
+  }
+
+  Future<void> _cancelDoctorReminders(int appointmentId) async {
+    for (final slot in _doctorReminderSlots) {
       await _plugin.cancel(_nid(appointmentId, slot));
     }
   }
@@ -296,8 +406,9 @@ class LocalReminderService {
               UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
         );
-      } catch (e2) {
+      } catch (e2, stackTrace) {
         debugPrint('[Reminder] Impossible de planifier id=$id : $e2');
+        Error.throwWithStackTrace(e2, stackTrace);
       }
     }
   }

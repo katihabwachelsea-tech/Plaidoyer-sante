@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/metric_card.dart';
+import '../messages_list_page.dart';
 import '../patient_home_page.dart';
 import 'patient_appointments_page.dart';
 import 'health_history_page.dart';
@@ -7,7 +8,8 @@ import 'patient_profile_page.dart';
 import '../../widgets/notification_bell.dart';
 
 class PatientNavigation extends StatefulWidget {
-  /// Index de l'onglet à afficher au démarrage (0=Accueil, 1=RDV, 2=Dossier, 3=Profil)
+  /// Index de l'onglet à afficher au démarrage.
+  /// 0=Accueil, 1=RDV, 2=Messages, 3=Dossier, 4=Profil.
   final int initialIndex;
 
   const PatientNavigation({super.key, this.initialIndex = 0});
@@ -22,6 +24,7 @@ class _PatientNavigationState extends State<PatientNavigation> {
   final List<Widget> _pages = const [
     PatientHomePage(),
     PatientAppointmentsPage(),
+    MessagesListPage(),
     HealthHistoryPage(),
     PatientProfilePage(),
   ];
@@ -44,10 +47,7 @@ class _PatientNavigationState extends State<PatientNavigation> {
           AppConstants.appName,
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
-        actions: [
-          NotificationBell(),
-          const SizedBox(width: 4),
-        ],
+        actions: [NotificationBell(), const SizedBox(width: 4)],
       ),
       body: _pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
@@ -66,6 +66,11 @@ class _PatientNavigationState extends State<PatientNavigation> {
             icon: Icon(Icons.event_outlined),
             selectedIcon: Icon(Icons.event_available_rounded),
             label: 'RDV',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline_rounded),
+            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            label: 'Messages',
           ),
           NavigationDestination(
             icon: Icon(Icons.folder_outlined),

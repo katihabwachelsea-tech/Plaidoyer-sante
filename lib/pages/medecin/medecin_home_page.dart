@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
@@ -25,9 +25,9 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
   final _api = MedecinApiService.instance;
   int _todayCount = 0;
   int _upcomingCount = 0;
+  int _termineCount = 0;
   int _patientsCount = 0;
   int _creneauxCount = 0;
-  int _consultationsCount = 0;
   bool _isLoading = true;
   String? _error;
   String _doctorName = 'Médecin';
@@ -50,26 +50,24 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
       // Enrichir le cache pour consultation hors ligne
       final all = await _api.getAppointments();
       await OfflineSyncService.instance.cacheAppointments(all);
-      for (final rdv in all) {
-        if (!rdv.isConfirme) continue;
-        if (rdv.dateHeure.toLocal().isBefore(DateTime.now())) continue;
-        try {
-          await LocalReminderService.instance.scheduleForDoctorAppointment(
-            appointmentId: rdv.id,
-            dateRdv: rdv.dateHeure,
-            patientName: rdv.patientDisplayName,
-            motif: rdv.motif.isEmpty ? 'Consultation' : rdv.motif,
-          );
-        } catch (_) {}
+      try {
+        await LocalReminderService.instance.syncDoctorAppointments(all);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Impossible de synchroniser les rappels : $e'),
+            backgroundColor: AppColors.warning,
+          ));
+        }
       }
       if (mounted) {
         setState(() {
           _today = today;
           _todayCount = _asInt(data['today_count']);
           _upcomingCount = _asInt(data['upcoming_count']);
+          _termineCount = _asInt(data['termine_count']);
           _patientsCount = _asInt(data['patients_count']);
           _creneauxCount = _asInt(data['creneaux_week_count']);
-          _consultationsCount = _asInt(data['consultations_count']);
           _doctorName = (data['nom'] ?? 'Médecin').toString();
           _isLoading = false;
         });
@@ -298,11 +296,11 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                         children: [
                           _KpiStrip(
                             items: [
-                              _KpiData('Aujourd’hui', '$_todayCount', 'RDV payés', Icons.event_available_rounded, const Color(0xFF0B6EBD), () => widget.onOpenTab?.call(1)),
-                              _KpiData('À venir', '$_upcomingCount', 'Confirmés', Icons.event_repeat_rounded, const Color(0xFF0E9F6E), () => widget.onOpenTab?.call(1)),
-                              _KpiData('Créneaux', '$_creneauxCount', 'Cette semaine', Icons.schedule_rounded, const Color(0xFF3B82F6), () => widget.onOpenTab?.call(2)),
+                              _KpiData('En attente', '$_todayCount', 'À traiter', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), () => widget.onOpenTab?.call(1)),
+                              _KpiData('Confirmés', '$_upcomingCount', 'Payés', Icons.event_available_rounded, const Color(0xFF0E9F6E), () => widget.onOpenTab?.call(1)),
+                              _KpiData('Créneaux', '$_creneauxCount', 'Cette semaine', Icons.schedule_rounded, const Color(0xFF3B82F6), () => widget.onOpenTab?.call(3)),
                               _KpiData('Patients', '$_patientsCount', 'Suivis', Icons.groups_rounded, const Color(0xFFF59E0B), () => widget.onOpenTab?.call(1)),
-                              _KpiData('Dossiers', '$_consultationsCount', 'Consultés', Icons.folder_shared_rounded, const Color(0xFF8B5CF6), () => widget.onOpenTab?.call(1)),
+                              _KpiData('Terminés', '$_termineCount', 'Consultés', Icons.task_alt_rounded, const Color(0xFF7C3AED), () => widget.onOpenTab?.call(1)),
                             ],
                           ),
                           const SizedBox(height: 22),
@@ -335,7 +333,7 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                                 child: _QuickAction(
                                   icon: Icons.add_alarm_rounded,
                                   label: 'Créneau',
-                                  onTap: () => widget.onOpenTab?.call(2),
+                                  onTap: () => widget.onOpenTab?.call(3),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -351,7 +349,7 @@ class _MedecinHomePageState extends State<MedecinHomePage> {
                                 child: _QuickAction(
                                   icon: Icons.person_rounded,
                                   label: 'Profil',
-                                  onTap: () => widget.onOpenTab?.call(3),
+                                  onTap: () => widget.onOpenTab?.call(4),
                                 ),
                               ),
                             ],

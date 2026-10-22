@@ -88,7 +88,7 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Dossier médical'),
+        title: const Text('Mon dossier médical'),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
       ),
@@ -99,7 +99,8 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
   Widget _body() {
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
     if (_error != null) {
       return ListView(
@@ -144,14 +145,18 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
         final raw = (item['date_consultation'] ?? '').toString();
         var date = raw;
         try {
-          date =
-              fmt.format(DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal());
+          date = fmt.format(
+            DateTime.parse(raw.replaceFirst(' ', 'T')).toLocal(),
+          );
         } catch (_) {}
         final recent = _isRecent(item);
-        final hasOrdonnance =
-            (item['ordonnance'] ?? '').toString().trim().isNotEmpty;
-        final hasSignature =
-            (item['signature_path'] ?? '').toString().isNotEmpty;
+        final hasOrdonnance = (item['ordonnance'] ?? '')
+            .toString()
+            .trim()
+            .isNotEmpty;
+        final hasSignature = (item['signature_path'] ?? '')
+            .toString()
+            .isNotEmpty;
 
         return InkWell(
           onTap: () {
@@ -195,27 +200,38 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(doctor.toString(),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text('$service • $date',
-                              style: TextStyle(color: AppColors.textSecondary)),
+                          Text(
+                            doctor.toString(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            '$service • $date',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
                         ],
                       ),
                     ),
                     if (recent)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: const Text('Nouveau',
-                            style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800)),
+                        child: const Text(
+                          'Nouveau',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -235,15 +251,20 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
                   ),
                 ],
                 const SizedBox(height: 10),
-                Text('Diagnostic',
-                    style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  'Diagnostic',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text((item['diagnostic'] ?? '—').toString()),
                 if (hasOrdonnance) ...[
                   const SizedBox(height: 8),
-                  const Text('Ordonnance',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Ordonnance',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   Text(
                     item['ordonnance'].toString(),
                     maxLines: 2,
@@ -254,13 +275,13 @@ class _HealthHistoryPageState extends State<HealthHistoryPage> {
                 Row(
                   children: [
                     if (hasSignature)
-                      const _MiniChip(
-                          icon: Icons.draw_rounded, label: 'Signé'),
+                      const _MiniChip(icon: Icons.draw_rounded, label: 'Signé'),
                     if (hasOrdonnance) ...[
                       const SizedBox(width: 6),
                       const _MiniChip(
-                          icon: Icons.medication_rounded,
-                          label: 'Ordonnance'),
+                        icon: Icons.medication_rounded,
+                        label: 'Ordonnance',
+                      ),
                     ],
                   ],
                 ),
@@ -318,11 +339,14 @@ class _MiniChip extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: AppColors.primary),
           const SizedBox(width: 4),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
         ],
       ),
     );
@@ -357,9 +381,10 @@ class ConsultationDetailPage extends StatelessWidget {
 
     var dateLabel = (record['date_consultation'] ?? '').toString();
     try {
-      dateLabel = DateFormat("EEEE d MMMM yyyy · HH:mm", 'fr_FR').format(
-        DateTime.parse(dateLabel.replaceFirst(' ', 'T')).toLocal(),
-      );
+      dateLabel = DateFormat(
+        "EEEE d MMMM yyyy · HH:mm",
+        'fr_FR',
+      ).format(DateTime.parse(dateLabel.replaceFirst(' ', 'T')).toLocal());
     } catch (_) {}
 
     return Scaffold(
@@ -393,29 +418,6 @@ class ConsultationDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          try {
-            await PrescriptionPdfService.previewAndShare(
-              context: context,
-              record: record,
-            );
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content: Text('Erreur PDF : $e'),
-                    backgroundColor: AppColors.error),
-              );
-            }
-          }
-        },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.picture_as_pdf_rounded),
-        label: const Text('Ordonnance PDF',
-            style: TextStyle(fontWeight: FontWeight.w700)),
-      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -443,17 +445,28 @@ class ConsultationDetailPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(doctor,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(
+                        doctor,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       if (specialite.isNotEmpty)
-                        Text(specialite,
-                            style:
-                                const TextStyle(color: AppColors.textSecondary)),
+                        Text(
+                          specialite,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       if (hopital.isNotEmpty)
-                        Text(hopital,
-                            style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 12)),
+                        Text(
+                          hopital,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -461,11 +474,14 @@ class ConsultationDetailPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text(service,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-          Text(dateLabel,
-              style: const TextStyle(color: AppColors.textSecondary)),
+          Text(
+            service,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
+          Text(
+            dateLabel,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
           if (mode.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -484,14 +500,39 @@ class ConsultationDetailPage extends StatelessWidget {
             _block('Anamnèse', record['anamnese'].toString()),
           if ((record['examen'] ?? '').toString().isNotEmpty)
             _block('Examen clinique', record['examen'].toString()),
+          for (final entry in _soapSections(record))
+            _block(entry.key, entry.value),
           _block('Diagnostic', (record['diagnostic'] ?? '—').toString()),
-          _block('Ordonnance', (record['ordonnance'] ?? '—').toString(),
-              accent: true),
+          _block(
+            'Ordonnance',
+            (record['ordonnance'] ?? '—').toString(),
+            accent: true,
+          ),
+          if (record['constantes_vitales'] is Map &&
+              (record['constantes_vitales'] as Map).isNotEmpty)
+            _block(
+              'Constantes vitales',
+              _formatMap(record['constantes_vitales'] as Map),
+            ),
+          if (record['medicaments'] is List &&
+              (record['medicaments'] as List).isNotEmpty)
+            _block(
+              'Médicaments prescrits',
+              _formatMedicaments(record['medicaments'] as List),
+            ),
+          if (record['examens_complementaires'] is List &&
+              (record['examens_complementaires'] as List).isNotEmpty)
+            _block(
+              'Examens complémentaires',
+              _formatExamens(record['examens_complementaires'] as List),
+            ),
           if ((record['conseils_ia'] ?? '').toString().isNotEmpty)
             _block('Notes / conseils', record['conseils_ia'].toString()),
           if (signature.isNotEmpty) ...[
-            const Text('Signature du médecin',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Signature du médecin',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Container(
               height: 140,
@@ -503,9 +544,8 @@ class ConsultationDetailPage extends StatelessWidget {
               child: Image.network(
                 signature,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Text('Signature indisponible'),
-                ),
+                errorBuilder: (_, __, ___) =>
+                    const Center(child: Text('Signature indisponible')),
               ),
             ),
             const SizedBox(height: 16),
@@ -534,19 +574,23 @@ class ConsultationDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Facture',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700, color: AppColors.primary)),
+          const Text(
+            'Facture',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 8),
           Text('Montant : $amount'),
-          Text('Statut : ${paid ? 'Payée' : 'Non payée'}',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: paid ? AppColors.success : AppColors.warning)),
-          if (paid) ...[
-            Text('Moyen : $method'),
-            Text('Réf. : $ref'),
-          ],
+          Text(
+            'Statut : ${paid ? 'Payée' : 'Non payée'}',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: paid ? AppColors.success : AppColors.warning,
+            ),
+          ),
+          if (paid) ...[Text('Moyen : $method'), Text('Réf. : $ref')],
         ],
       ),
     );
@@ -569,13 +613,65 @@ class ConsultationDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: AppColors.primary)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(body, style: const TextStyle(height: 1.4)),
         ],
       ),
     );
   }
+
+  List<MapEntry<String, String>> _soapSections(Map<String, dynamic> record) {
+    const labels = {
+      'soap_s': 'SOAP — Subjectif',
+      'soap_o': 'SOAP — Objectif',
+      'soap_a': 'SOAP — Analyse',
+      'soap_p': 'SOAP — Plan',
+    };
+    return labels.entries
+        .map(
+          (entry) => MapEntry(
+            entry.value,
+            (record[entry.key] ?? '').toString().trim(),
+          ),
+        )
+        .where((entry) => entry.value.isNotEmpty)
+        .toList();
+  }
+
+  String _formatMap(Map values) =>
+      values.entries.map((entry) => '${entry.key} : ${entry.value}').join('\n');
+
+  String _formatMedicaments(List values) => values
+      .whereType<Map>()
+      .map((medicine) {
+        final name = medicine['nom']?.toString() ?? 'Médicament';
+        final dosage = medicine['dosage']?.toString() ?? '';
+        final unit = medicine['unite']?.toString() ?? '';
+        final frequency = medicine['frequence']?.toString() ?? '';
+        final duration = medicine['duree']?.toString() ?? '';
+        final durationUnit = medicine['unite_duree']?.toString() ?? '';
+        return [
+          name,
+          if (dosage.isNotEmpty) '$dosage $unit'.trim(),
+          if (frequency.isNotEmpty) frequency,
+          if (duration.isNotEmpty) '$duration $durationUnit'.trim(),
+        ].join(' — ');
+      })
+      .join('\n');
+
+  String _formatExamens(List values) => values
+      .whereType<Map>()
+      .map((exam) {
+        final name = exam['nom']?.toString() ?? 'Examen';
+        final result = exam['resultat']?.toString() ?? '';
+        return result.isEmpty ? name : '$name : $result';
+      })
+      .join('\n');
 }

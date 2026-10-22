@@ -11,7 +11,7 @@
 //       - "+ Add time slot" pour en ajouter
 //   • Durée de visite individuelle par jour (override du global)
 //   • Section "Exceptions" : jours fériés / congés avec date + label
-//   • Bouton vert  "Save Working Time"  → génère les créneaux sur 4 semaines
+//   • Bouton vert  "Save Working Time"  → sauvegarde la règle hebdomadaire côté serveur
 //   • Bouton bleu  "Sync Weekly with Android Calendar"
 //   • Toggle       "Sync with Android Calendar" (auto)
 
@@ -62,16 +62,22 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
 
   // Jours : index 0=Lundi … 6=Dimanche
   final List<String> _dayNames = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-    'Friday', 'Saturday', 'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
   ];
 
   late final List<_DaySchedule> _days;
   final List<_Exception> _exceptions = [];
 
-  bool _autoSync  = false;
-  bool _isSaving  = false;
+  bool _autoSync = false;
+  bool _isSaving = false;
   bool _isSyncing = false;
+  bool _isLoadingSchedule = true;
 
   @override
   void initState() {
@@ -82,14 +88,69 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
         slots: [
           _TimeSlot(
             start: const TimeOfDay(hour: 8, minute: 0),
-            end:   const TimeOfDay(hour: 12, minute: 0)),
+            end: const TimeOfDay(hour: 12, minute: 0),
+          ),
           _TimeSlot(
             start: const TimeOfDay(hour: 14, minute: 0),
-            end:   const TimeOfDay(hour: 17, minute: 30)),
+            end: const TimeOfDay(hour: 17, minute: 30),
+          ),
         ],
       );
     });
     _loadPrefs();
+    _loadWorkingTime();
+  }
+
+  Future<void> _loadWorkingTime() async {
+    try {
+      final data = await MedecinApiService.instance.getWorkingTime();
+      final configuredDays = (data['days'] as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      if (configuredDays.length != _days.length) {
+        throw const FormatException('Configuration hebdomadaire invalide.');
+      }
+      final configuredExceptions = (data['exceptions'] as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _globalDuration = data['global_duration_minutes'] as int;
+        for (final day in configuredDays) {
+          final index = (day['weekday'] as int) - 1;
+          _days[index]
+            ..active = day['active'] as bool
+            ..durationOverride = day['duration_override_minutes'] as int?
+            ..slots = (day['slots'] as List<dynamic>).map((item) {
+              final slot = Map<String, dynamic>.from(item as Map);
+              return _TimeSlot(
+                start: _parseTime(slot['start'] as String),
+                end: _parseTime(slot['end'] as String),
+              );
+            }).toList();
+        }
+        _exceptions
+          ..clear()
+          ..addAll(
+            configuredExceptions.map(
+              (exception) => _Exception(
+                date: DateTime.parse(exception['date'] as String),
+                label: exception['label'] as String,
+              ),
+            ),
+          );
+      });
+    } catch (e) {
+      if (mounted) {
+        _toast(
+          'Impossible de charger les horaires enregistrés : $e',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingSchedule = false);
+    }
   }
 
   Future<void> _loadPrefs() async {
@@ -98,37 +159,55 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
   }
 
   Future<void> _setAutoSync(bool v) async {
+    if (v) {
+      try {
+        await CalendarSyncService.instance.requestCalendarPermissions();
+      } catch (e) {
+        _toast('Permission calendrier refusée : $e', error: true);
+        return;
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, v);
-    setState(() => _autoSync = v);
+    if (mounted) setState(() => _autoSync = v);
   }
 
-  // ── Génération et sauvegarde ──────────────────────────────────────────────
+  // ── Sauvegarde des horaires hebdomadaires ────────────────────────────────
 
   Future<void> _save() async {
+    if (_isLoadingSchedule) return;
     setState(() => _isSaving = true);
     try {
-      final slots = _generateSlots(weeksAhead: 4);
-      if (slots.isEmpty) {
-        _toast('Aucun créneau à créer. Activez au moins un jour.', error: true);
+      final validationError = _scheduleValidationError();
+      if (validationError != null) {
+        _toast(validationError, error: true);
         return;
       }
 
-      int totalCreated = 0;
-      int totalSkipped = 0;
-
-      for (var i = 0; i < slots.length; i += 50) {
-        final batch = slots.sublist(
-            i, (i + 50) > slots.length ? slots.length : i + 50);
-        final result = await MedecinApiService.instance.bulkCreateCreneaux(batch);
-        totalCreated += (result['created'] as int? ?? 0);
-        totalSkipped += (result['skipped'] as int? ?? 0);
-      }
-
-      _toast(
-        '$totalCreated créneau(x) créé(s)'
-        '${totalSkipped > 0 ? ", $totalSkipped doublon(s) ignoré(s)" : ""} ✅',
-      );
+      final schedule = {
+        'global_duration_minutes': _globalDuration,
+        'days': [
+          for (var dayIndex = 0; dayIndex < _days.length; dayIndex++)
+            {
+              'weekday': dayIndex + 1,
+              'active': _days[dayIndex].active,
+              'duration_override_minutes': _days[dayIndex].durationOverride,
+              'slots': [
+                for (final slot in _days[dayIndex].slots)
+                  {'start': _fmt(slot.start), 'end': _fmt(slot.end)},
+              ],
+            },
+        ],
+        'exceptions': [
+          for (final exception in _exceptions)
+            {
+              'date': DateFormat('yyyy-MM-dd').format(exception.date),
+              'label': exception.label,
+            },
+        ],
+      };
+      await MedecinApiService.instance.saveWorkingTime(schedule);
+      _toast('Horaires hebdomadaires enregistrés ✅');
 
       if (_autoSync) unawaited(_syncToCalendar(silent: true));
     } catch (e) {
@@ -138,46 +217,35 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
     }
   }
 
-  /// Génère la liste de tous les créneaux en tenant compte des exceptions.
-  List<Map<String, String>> _generateSlots({int weeksAhead = 4}) {
-    final result  = <Map<String, String>>[];
-    final today   = DateTime.now();
-    final start   = DateTime(today.year, today.month, today.day);
-    final end     = start.add(Duration(days: weeksAhead * 7));
-
-    final exceptionDates = _exceptions
-        .map((e) => DateFormat('yyyy-MM-dd').format(e.date))
-        .toSet();
-
-    for (var d = start; d.isBefore(end); d = d.add(const Duration(days: 1))) {
-      final dateStr = DateFormat('yyyy-MM-dd').format(d);
-      if (exceptionDates.contains(dateStr)) continue;
-
-      final dayIndex = (d.weekday - 1) % 7; // 0=Lun … 6=Dim
+  String? _scheduleValidationError() {
+    for (var dayIndex = 0; dayIndex < _days.length; dayIndex++) {
       final schedule = _days[dayIndex];
-      if (!schedule.active) continue;
 
-      final duration = schedule.durationOverride ?? _globalDuration;
+      final orderedSlots = [...schedule.slots]
+        ..sort(
+          (a, b) => (a.start.hour * 60 + a.start.minute).compareTo(
+            b.start.hour * 60 + b.start.minute,
+          ),
+        );
 
-      for (final slot in schedule.slots) {
-        int cur = slot.start.hour * 60 + slot.start.minute;
-        final slotEnd = slot.end.hour * 60 + slot.end.minute;
-
-        while (cur + duration <= slotEnd) {
-          final sh = (cur ~/ 60).toString().padLeft(2, '0');
-          final sm = (cur  % 60).toString().padLeft(2, '0');
-          final eh = ((cur + duration) ~/ 60).toString().padLeft(2, '0');
-          final em = ((cur + duration)  % 60).toString().padLeft(2, '0');
-          result.add({
-            'date':        dateStr,
-            'heure_debut': '$sh:$sm',
-            'heure_fin':   '$eh:$em',
-          });
-          cur += duration;
+      for (var i = 0; i < orderedSlots.length; i++) {
+        final slot = orderedSlots[i];
+        final start = slot.start.hour * 60 + slot.start.minute;
+        final end = slot.end.hour * 60 + slot.end.minute;
+        if (end <= start) {
+          return 'Vérifiez les heures de début et de fin pour ${_dayNames[dayIndex]}.';
+        }
+        if (i > 0) {
+          final previousEnd =
+              orderedSlots[i - 1].end.hour * 60 +
+              orderedSlots[i - 1].end.minute;
+          if (start < previousEnd) {
+            return 'Les plages horaires de ${_dayNames[dayIndex]} se chevauchent.';
+          }
         }
       }
     }
-    return result;
+    return null;
   }
 
   // ── Sync calendrier ───────────────────────────────────────────────────────
@@ -185,25 +253,35 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
   Future<void> _syncToCalendar({bool silent = false}) async {
     if (!silent) setState(() => _isSyncing = true);
     try {
-      // Ouvre l'app calendrier pour le premier créneau actif aujourd'hui ou demain
-      final today = DateTime.now();
-      for (var i = 0; i < 7; i++) {
-        final d = today.add(Duration(days: i));
-        final dayIdx = (d.weekday - 1) % 7;
-        if (!_days[dayIdx].active || _days[dayIdx].slots.isEmpty) continue;
-        final slot = _days[dayIdx].slots.first;
-        await CalendarSyncService.instance.addAppointmentToCalendar(
-          dateRdv:    DateTime(d.year, d.month, d.day,
-              slot.start.hour, slot.start.minute),
-          doctorName: 'Mob-Clinic',
-          serviceName: 'Disponibilité',
-          motif:      'Créneau de disponibilité',
-        );
-        break;
+      final schedules = <CalendarWorkingSlot>[
+        for (var dayIndex = 0; dayIndex < _days.length; dayIndex++)
+          for (final slot in _days[dayIndex].slots)
+            CalendarWorkingSlot(
+              dayOfWeek: dayIndex + 1,
+              startTime: _fmt(slot.start),
+              endTime: _fmt(slot.end),
+              enabled: _days[dayIndex].active,
+            ),
+      ];
+      final exceptions = _exceptions
+          .map(
+            (exception) => CalendarExceptionDay(
+              date: exception.date,
+              label: exception.label,
+            ),
+          )
+          .toList();
+      final appointments = await MedecinApiService.instance.getAppointments();
+      final created = await CalendarSyncService.instance.syncWeeklyWorkingTime(
+        slots: schedules,
+        exceptions: exceptions,
+        appointments: appointments,
+      );
+      if (!silent) {
+        _toast('$created événement(s) synchronisé(s) ✅');
       }
-      if (!silent) _toast('Agenda téléphone ouvert ✅');
     } catch (e) {
-      if (!silent) _toast('Erreur sync : $e', error: true);
+      _toast('Erreur sync : $e', error: true);
     } finally {
       if (mounted && !silent) setState(() => _isSyncing = false);
     }
@@ -227,7 +305,6 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
         children: [
-
           // ── Durée de visite globale ────────────────────────────────
           _buildGlobalDuration(),
           const SizedBox(height: 16),
@@ -246,21 +323,28 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _isSaving ? null : _save,
+              onPressed: _isSaving || _isLoadingSchedule ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.success,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              child: _isSaving
+              child: _isSaving || _isLoadingSchedule
                   ? const SizedBox(
-                      width: 22, height: 22,
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text(
                       'Save Working Time',
                       style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
             ),
           ),
@@ -270,21 +354,30 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _isSyncing ? null : () => _syncToCalendar(),
+              onPressed: _isSyncing || _isLoadingSchedule
+                  ? null
+                  : () => _syncToCalendar(),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: _isSyncing
                   ? const SizedBox(
-                      width: 22, height: 22,
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text(
                       'Sync Weekly with Android Calendar',
                       style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
             ),
           ),
@@ -297,30 +390,33 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Sync with Android Calendar',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      'Automatically sync weekly availability to your native calendar',
-                      style: const TextStyle(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Sync with Android Calendar',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        'Automatically sync weekly availability to your native calendar',
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary),
-                    ),
-                  ],
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Switch(
-                value: _autoSync,
-                onChanged: _setAutoSync,
-                activeColor: AppColors.primary,
-              ),
-            ]),
+                Switch(
+                  value: _autoSync,
+                  onChanged: _setAutoSync,
+                  activeColor: AppColors.primary,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -335,42 +431,56 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
     ),
-    child: Row(children: [
-      const Expanded(
-        child: Text(
-          'Visit duration',
-          style: TextStyle(fontWeight: FontWeight.w600),
+    child: Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Visit duration',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
         ),
-      ),
-      // –
-      _roundBtn(
-        icon: Icons.remove,
-        onTap: () {
-          if (_globalDuration > 5) {
-            setState(() => _globalDuration -= 5);
-          }
-        },
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
-          '$_globalDuration min',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        // –
+        _roundBtn(
+          icon: Icons.remove,
+          onTap: () {
+            if (_globalDuration > 10) {
+              setState(
+                () => _globalDuration = (_globalDuration - 10)
+                    .clamp(10, 120)
+                    .toInt(),
+              );
+            }
+          },
         ),
-      ),
-      // +
-      _roundBtn(
-        icon: Icons.add,
-        onTap: () => setState(() => _globalDuration += 5),
-      ),
-    ]),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            '$_globalDuration min',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
+        ),
+        // +
+        _roundBtn(
+          icon: Icons.add,
+          onTap: () {
+            if (_globalDuration < 120) {
+              setState(
+                () => _globalDuration = (_globalDuration + 10)
+                    .clamp(10, 120)
+                    .toInt(),
+              );
+            }
+          },
+        ),
+      ],
+    ),
   );
 
   // ── Widget : carte d'un jour ──────────────────────────────────────────────
 
   Widget _buildDayCard(int i) {
     final schedule = _days[i];
-    final name     = _dayNames[i];
+    final name = _dayNames[i];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -384,25 +494,27 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
           // ── Ligne toggle ────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
-            child: Row(children: [
-              Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: schedule.active
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: schedule.active
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
                   ),
                 ),
-              ),
-              Switch(
-                value: schedule.active,
-                onChanged: (v) => setState(() => schedule.active = v),
-                activeColor: AppColors.success,
-              ),
-            ]),
+                Switch(
+                  value: schedule.active,
+                  onChanged: (v) => setState(() => schedule.active = v),
+                  activeColor: AppColors.success,
+                ),
+              ],
+            ),
           ),
 
           if (!schedule.active) ...[
@@ -417,12 +529,16 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
                         .map((s) => '${_fmt(s.start)}-${_fmt(s.end)}')
                         .join(', '),
                     style: const TextStyle(
-                        fontSize: 13, color: AppColors.textLight),
+                      fontSize: 13,
+                      color: AppColors.textLight,
+                    ),
                   ),
                   Text(
                     'Visit duration: ${schedule.durationOverride ?? _globalDuration} min',
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textLight),
+                      fontSize: 12,
+                      color: AppColors.textLight,
+                    ),
                   ),
                 ],
               ),
@@ -435,32 +551,47 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ...schedule.slots.asMap().entries.map((entry) {
-                    final idx  = entry.key;
+                    final idx = entry.key;
                     final slot = entry.value;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(children: [
-                        Text(
-                          '${_fmt(slot.start)} - ${_fmt(slot.end)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 14),
-                        ),
-                        const SizedBox(width: 10),
-                        // ✏️ Modifier
-                        GestureDetector(
-                          onTap: () => _editSlot(i, idx),
-                          child: const Icon(Icons.edit_rounded,
-                              size: 18, color: AppColors.info),
-                        ),
-                        const SizedBox(width: 8),
-                        // 🗑️ Supprimer
-                        GestureDetector(
-                          onTap: () => setState(
-                              () => schedule.slots.removeAt(idx)),
-                          child: const Icon(Icons.delete_rounded,
-                              size: 18, color: AppColors.error),
-                        ),
-                      ]),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${_fmt(slot.start)} - ${_fmt(slot.end)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // ✏️ Modifier
+                          GestureDetector(
+                            onTap: () => _editSlot(i, idx),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              size: 18,
+                              color: AppColors.info,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // 🗑️ Supprimer
+                          GestureDetector(
+                            onTap: schedule.slots.length > 1
+                                ? () => setState(
+                                    () => schedule.slots.removeAt(idx),
+                                  )
+                                : null,
+                            child: Icon(
+                              Icons.delete_rounded,
+                              size: 18,
+                              color: schedule.slots.length > 1
+                                  ? AppColors.error
+                                  : AppColors.textLight,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   }),
 
@@ -469,64 +600,87 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
                     onTap: () => _addSlot(i),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(children: const [
-                        Icon(Icons.add_rounded,
-                            size: 18, color: AppColors.primary),
-                        SizedBox(width: 4),
-                        Text(
-                          '+ Add time slot',
-                          style: TextStyle(
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.add_rounded,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            '+ Add time slot',
+                            style: TextStyle(
                               color: AppColors.primary,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ]),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
                   // Durée individuelle
-                  Row(children: [
-                    const Text('Visit duration: ',
-                        style: TextStyle(fontSize: 13)),
-                    _roundBtn(
-                      icon: Icons.remove,
-                      size: 26,
-                      onTap: () {
-                        final cur = schedule.durationOverride ?? _globalDuration;
-                        if (cur > 5) {
-                          setState(() => schedule.durationOverride = cur - 5);
-                        }
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '${schedule.durationOverride ?? _globalDuration} min',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                  Row(
+                    children: [
+                      const Text(
+                        'Visit duration: ',
+                        style: TextStyle(fontSize: 13),
                       ),
-                    ),
-                    _roundBtn(
-                      icon: Icons.add,
-                      size: 26,
-                      onTap: () {
-                        final cur = schedule.durationOverride ?? _globalDuration;
-                        setState(() => schedule.durationOverride = cur + 5);
-                      },
-                    ),
-                    if (schedule.durationOverride != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => schedule.durationOverride = null),
+                      _roundBtn(
+                        icon: Icons.remove,
+                        size: 26,
+                        onTap: () {
+                          final cur =
+                              schedule.durationOverride ?? _globalDuration;
+                          if (cur > 10) {
+                            setState(
+                              () => schedule.durationOverride = (cur - 10)
+                                  .clamp(10, 120)
+                                  .toInt(),
+                            );
+                          }
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
-                          'reset',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textLight,
-                              decoration: TextDecoration.underline),
+                          '${schedule.durationOverride ?? _globalDuration} min',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
+                      _roundBtn(
+                        icon: Icons.add,
+                        size: 26,
+                        onTap: () {
+                          final cur =
+                              schedule.durationOverride ?? _globalDuration;
+                          if (cur < 120) {
+                            setState(
+                              () => schedule.durationOverride = (cur + 10)
+                                  .clamp(10, 120)
+                                  .toInt(),
+                            );
+                          }
+                        },
+                      ),
+                      if (schedule.durationOverride != null) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => schedule.durationOverride = null),
+                          child: Text(
+                            'reset',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textLight,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ]),
+                  ),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -542,33 +696,39 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
   Widget _buildExceptionsSection() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Row(children: [
-        const Text(
-          'Exceptions',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-        ),
-        const Spacer(),
-        GestureDetector(
-          onTap: _addException,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.add_rounded,
-                  size: 16, color: AppColors.primary),
-              SizedBox(width: 4),
-              Text('Add',
-                  style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600)),
-            ]),
+      Row(
+        children: [
+          const Text(
+            'Exceptions',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           ),
-        ),
-      ]),
+          const Spacer(),
+          GestureDetector(
+            onTap: _addException,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
+                  SizedBox(width: 4),
+                  Text(
+                    'Add',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       const SizedBox(height: 10),
       if (_exceptions.isEmpty)
         Container(
@@ -580,8 +740,7 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
           ),
           child: const Text(
             'Aucune exception. Ajoutez les jours fériés et congés.',
-            style: TextStyle(
-                color: AppColors.textSecondary, fontSize: 13),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
             textAlign: TextAlign.center,
           ),
         )
@@ -591,37 +750,41 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
           final exc = entry.value;
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Unavailable',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      '${exc.label} · ${DateFormat("MMM d, yyyy", "fr_FR").format(exc.date)}',
-                      style: const TextStyle(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Unavailable',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        '${exc.label} · ${DateFormat("MMM d, yyyy", "fr_FR").format(exc.date)}',
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary),
-                    ),
-                  ],
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_rounded,
-                    color: AppColors.error, size: 20),
-                onPressed: () =>
-                    setState(() => _exceptions.removeAt(idx)),
-              ),
-            ]),
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_rounded,
+                    color: AppColors.error,
+                    size: 20,
+                  ),
+                  onPressed: () => setState(() => _exceptions.removeAt(idx)),
+                ),
+              ],
+            ),
           );
         }),
     ],
@@ -637,26 +800,28 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
         : const TimeOfDay(hour: 8, minute: 0);
 
     TimeOfDay newStart = lastEnd;
-    TimeOfDay newEnd   = TimeOfDay(
-      hour:   (lastEnd.hour + 1).clamp(0, 23),
+    TimeOfDay newEnd = TimeOfDay(
+      hour: (lastEnd.hour + 1).clamp(0, 23),
       minute: lastEnd.minute,
     );
 
-    final result = await _showSlotDialog(
-        context, start: newStart, end: newEnd);
+    final result = await _showSlotDialog(context, start: newStart, end: newEnd);
     if (result != null) {
       setState(() => schedule.slots.add(result));
     }
   }
 
   Future<void> _editSlot(int dayIndex, int slotIndex) async {
-    final slot   = _days[dayIndex].slots[slotIndex];
+    final slot = _days[dayIndex].slots[slotIndex];
     final result = await _showSlotDialog(
-        context, start: slot.start, end: slot.end);
+      context,
+      start: slot.start,
+      end: slot.end,
+    );
     if (result != null) {
       setState(() {
         _days[dayIndex].slots[slotIndex].start = result.start;
-        _days[dayIndex].slots[slotIndex].end   = result.end;
+        _days[dayIndex].slots[slotIndex].end = result.end;
       });
     }
   }
@@ -672,51 +837,86 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
     return showDialog<_TimeSlot>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
-          title: const Text('Time slot',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-          content: Row(children: [
-            Expanded(child: _dialogTimeBtn(
-              label: 'Start',
-              time:  s,
-              onTap: () async {
-                final t = await showTimePicker(
-                    context: ctx, initialTime: s);
-                if (t != null) setD(() => s = t);
-              },
-            )),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: Text('→',
-                  style: TextStyle(color: AppColors.textSecondary,
-                      fontSize: 18)),
+        builder: (ctx, setD) {
+          final isValid = e.hour * 60 + e.minute > s.hour * 60 + s.minute;
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
             ),
-            Expanded(child: _dialogTimeBtn(
-              label: 'End',
-              time:  e,
-              onTap: () async {
-                final t = await showTimePicker(
-                    context: ctx, initialTime: e);
-                if (t != null) setD(() => e = t);
-              },
-            )),
-          ]),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler'),
+            title: const Text(
+              'Time slot',
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, _TimeSlot(start: s, end: e)),
-              style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary),
-              child: const Text('OK'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _dialogTimeBtn(
+                        label: 'Start',
+                        time: s,
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: ctx,
+                            initialTime: s,
+                          );
+                          if (t != null) setD(() => s = t);
+                        },
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        '→',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: _dialogTimeBtn(
+                        label: 'End',
+                        time: e,
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: ctx,
+                            initialTime: e,
+                          );
+                          if (t != null) setD(() => e = t);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                if (!isValid)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: Text(
+                      'L’heure de fin doit être après l’heure de début.',
+                      style: TextStyle(color: AppColors.error, fontSize: 12),
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: isValid
+                    ? () => Navigator.pop(ctx, _TimeSlot(start: s, end: e))
+                    : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -734,10 +934,11 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
     final label = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18)),
-        title: const Text('Exception label',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Exception label',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(
@@ -747,12 +948,12 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('OK'),
           ),
         ],
@@ -761,8 +962,7 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
 
     if (!mounted) return;
     if (label != null && label.isNotEmpty) {
-      setState(() => _exceptions.add(
-          _Exception(date: picked, label: label)));
+      setState(() => _exceptions.add(_Exception(date: picked, label: label)));
     }
   }
 
@@ -771,62 +971,69 @@ class _WorkingTimePageState extends State<WorkingTimePage> {
   String _fmt(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+  TimeOfDay _parseTime(String value) {
+    final parts = value.split(':');
+    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+  }
+
   void _toast(String msg, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: error ? AppColors.error : AppColors.success,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? AppColors.error : AppColors.success,
+      ),
+    );
   }
 
   Widget _roundBtn({
     required IconData icon,
     required VoidCallback onTap,
     double size = 32,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width:  size,
-          height: size,
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(99),
-          ),
-          child: Icon(icon, size: size * 0.55,
-              color: AppColors.textSecondary),
-        ),
-      );
+  }) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Icon(icon, size: size * 0.55, color: AppColors.textSecondary),
+    ),
+  );
 
   Widget _dialogTimeBtn({
     required String label,
     required TimeOfDay time,
     required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+  }) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
-              const SizedBox(height: 4),
-              Text(
-                _fmt(time),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-            ],
+          const SizedBox(height: 4),
+          Text(
+            _fmt(time),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
