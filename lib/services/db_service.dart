@@ -11,12 +11,12 @@ import '../models/Conseil.dart'; // Renommé 'advice.dart' pour le modèle Conse
 class DatabaseService {
   static Database? _database;
   static const String tableName = 'Patients';
-  // 🔥 MODE DEBUG : Change à true SEULEMENT pour réinitialiser la DB
-  // ⚠️ ATTENTION : Mets à false avant de publier l'app !
+  //  MODE DEBUG : Change à true SEULEMENT pour réinitialiser la DB
+  // ATTENTION : Mets à false avant de publier l'app !
   // static const bool FORCE_RESET_DB =true; //pour insérer les patients de test (une seule fois).
   static const bool FORCE_RESET_DB = false;
 
-  //🎯 MODE AUTO : Insère les données de test si la DB est vide
+  // MODE AUTO : Insère les données de test si la DB est vide
   static const bool AUTO_INSERT_TEST_DATA = true;
 
   // Singleton pattern
@@ -34,9 +34,9 @@ class DatabaseService {
   Future<Database> _initDatabase() async {
     String path = join(await getDatabasesPath(), 'patients.db');
 
-    // 🔥 SI MODE DEBUG, supprimer l'ancienne base
+    //  SI MODE DEBUG, supprimer l'ancienne base
     if (FORCE_RESET_DB) {
-      print('⚠️ MODE DEBUG : Suppression de l\'ancienne base de données...');
+      print(' MODE DEBUG : Suppression de l\'ancienne base de données...');
       await deleteDatabase(path);
     }
 
@@ -54,7 +54,7 @@ class DatabaseService {
         // Vérifier le nombre de patients au démarrage
         final count = await db.rawQuery('SELECT COUNT(*) FROM $tableName');
         print(
-          '📊 Nombre de patients dans la DB : ${Sqflite.firstIntValue(count)}',
+          ' Nombre de patients dans la DB : ${Sqflite.firstIntValue(count)}',
         );
       },
     );
@@ -117,13 +117,13 @@ class DatabaseService {
 ''');
     print('✅ Table Conseils créée');
 
-    // 💡 APPEL DE LA FONCTION : Insérer les conseils par défaut juste après la création de la table
+    //  APPEL DE LA FONCTION : Insérer les conseils par défaut juste après la création de la table
     await insertInitialConseils(db);
 
     await _createPendingSyncTable(db);
     await _createAppointmentsCacheTable(db);
 
-    // ✨ NOUVEAU : Table des sponsors
+    //  NOUVEAU : Table des sponsors
     await db.execute('''
 CREATE TABLE sponsors (
 id INTEGER PRIMARY KEY,
@@ -135,8 +135,8 @@ targetDisease TEXT,
 targetCountry TEXT 
 );
 ''');
-    print('✅ Table Sponsors créée');
-    // 💡 NOUVEL APPEL : Insérer les sponsors par défaut juste après la création de la table
+    //print(' Table Sponsors créée');
+    //  NOUVEL APPEL : Insérer les sponsors par défaut juste après la création de la table
     await insertInitialSponsors(db);
     await _createPendingSyncTable(db);
   }
@@ -162,7 +162,8 @@ targetCountry TEXT
       print('✅ Migration v3 : cache RDV + queue consultation');
     }
   }
-
+//pending_sync : Une table très importante qui sert de "file d'attente"
+// pour synchroniser les données avec le serveur quand internet revient.
   Future<void> _createPendingSyncTable(Database db) async {
     await db.execute('''
 CREATE TABLE IF NOT EXISTS pending_sync (
