@@ -363,4 +363,39 @@ class AuthService {
     final token = await _storage.read(key: 'jwt_token');
     return token != null && token.isNotEmpty;
   }
+
+  /// Tente de restaurer la session depuis le token stocké.
+  /// Appelle GET /api/me pour vérifier que le token est encore valide.
+  /// Retourne le rôle si la session est restaurée, null sinon.
+  Future<String?> tryRestoreSession() async {
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+      if (token == null || token.isEmpty) return null;
+
+      final url = '$baseUrl/me';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final userData = data['user'] ?? data['data'] ?? data;
+        if (userData is Map<String, dynamic>) {
+          _currentUser = User.fromMap(userData);
+          return _currentUser!.role;
+        }
+      }
+      // Token invalide ou expiré — on nettoie
+      await logout();
+      return null;
+    } catch (_) {
+      // Pas de réseau ou timeout — on garde le token sans valider
+      // pour ne pas bloquer si l'utilisateur est hors ligne au démarrage
+      return await _storage.read(key: 'user_role');
+    }
+  }
 }

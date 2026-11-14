@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
-    // id("com.google.gms.google-services") // À activer après ajout de google-services.json
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.examen"
+        applicationId = "com.mob.clinic"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode

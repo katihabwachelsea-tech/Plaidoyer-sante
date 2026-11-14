@@ -1,8 +1,10 @@
 // lib/pages/login_page.dart
 // lib/pages/login_page.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart';
 import '../models/user.dart';
 import 'register_page.dart';
 import 'patient/patient_navigation.dart';
@@ -114,6 +116,8 @@ class _LoginPageState extends State<LoginPage>
         }
 
         // Profil complété → accueil selon le rôle
+        // Initialiser FCM une seule fois après connexion réussie
+        unawaited(PushNotificationService.instance.init());
         if (userRole == User.rolePatient) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const PatientNavigation()),

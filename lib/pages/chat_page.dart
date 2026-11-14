@@ -1,12 +1,14 @@
 // lib/pages/chat_page.dart
 //
 // Messagerie instantanée entre patient et médecin pour un RDV donné.
-// Polling automatique toutes les 5 secondes.
+// Temps réel via Pusher WebSocket — polling conservé uniquement pour
+// la mise à jour des statuts "lu" (toutes les 30s au lieu de 5s).
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/chat_service.dart';
+import '../services/pusher_service.dart';
 import '../widgets/metric_card.dart';
 
 class ChatPage extends StatefulWidget {
@@ -35,23 +37,71 @@ class _ChatPageState extends State<ChatPage> {
   bool _loading = true;
   bool _sending = false;
   String? _error;
-  Timer? _pollTimer;
+  Timer? _readStatusTimer; // polling léger pour les statuts "lu" uniquement
 
   @override
   void initState() {
     super.initState();
     _load();
-    // Polling toutes les 5 secondes
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
+    _subscribePusher();
+    // Polling allégé toutes les 30s — seulement pour rafraîchir les ✓✓
+    _readStatusTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _pollReadStatus(),
+    );
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _readStatusTimer?.cancel();
+    PusherService.instance.unsubscribe(widget.appointmentId);
     _controller.dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
     super.dispose();
+  }
+
+  /// Connexion Pusher — reçoit les nouveaux messages en temps réel.
+  void _subscribePusher() {
+    PusherService.instance.subscribeToAppointment(
+      appointmentId: widget.appointmentId,
+      onMessage: (data) {
+        if (!mounted) return;
+        // Le message reçu de Pusher est déjà formaté par Laravel
+        // (même structure que ChatMessage.fromMap)
+        try {
+          final currentUserId = _messages.isNotEmpty
+              ? (_messages.first.isMe
+                  ? _messages.first.senderId
+                  : _messages.last.senderId)
+              : 0;
+          final msg = ChatMessage.fromMap(
+            data,
+            currentUserId: currentUserId,
+            currentUserNom: '',
+          );
+          // Éviter les doublons (au cas où on reçoit notre propre message)
+          if (_messages.any((m) => m.id == msg.id)) return;
+          setState(() => _messages.add(msg));
+          _scrollToBottom();
+        } catch (e) {
+          // Si le parsing échoue, on recharge via API
+          _poll();
+        }
+      },
+    );
+  }
+
+  /// Rafraîchit depuis l'API uniquement pour les statuts "lu" — pas pour les nouveaux messages.
+  Future<void> _pollReadStatus() async {
+    if (!mounted || _messages.isEmpty) return;
+    try {
+      final msgs = await _service.getMessages(widget.appointmentId);
+      if (!mounted) return;
+      if (!_sameReadState(msgs, _messages)) {
+        setState(() => _messages = msgs);
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -83,7 +133,6 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final msgs = await _service.getMessages(widget.appointmentId);
       if (!mounted) return;
-      // Rafraîchir aussi si le statut lu change (✓ → ✓✓)
       final changed =
           msgs.length != _messages.length || !_sameReadState(msgs, _messages);
       if (changed) {
@@ -234,7 +283,7 @@ class _ChatPageState extends State<ChatPage> {
           Expanded(
             child: Text(
               'Échangez au sujet de votre rendez-vous. '
-              'Les nouveaux messages se chargent automatiquement.',
+              'Les nouveaux messages arrivent en temps réel.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,

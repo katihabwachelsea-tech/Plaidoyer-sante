@@ -1,5 +1,7 @@
 // lib/main.dart
 
+import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -20,8 +22,8 @@ void main() async {
   await SettingsService.instance.loadSettings();
   await LocalReminderService.instance.init();
 
-  // Firebase — à activer après ajout de google-services.json
-  // await Firebase.initializeApp();
+  // Firebase + FCM
+  await Firebase.initializeApp();
 
   // Mode production — API Laravel uniquement.
   AppDataMode.enableProductionMode();
@@ -104,14 +106,27 @@ class _AuthCheckState extends State<AuthCheck> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // Sécurité médicale : l'utilisateur doit se connecter à chaque
-    // ouverture de l'application. Les données de santé sont sensibles.
-    if (mounted) {
-      setState(() {
-        _isLoggedIn = false;
-        _userRole   = null;
-        _isLoading  = false;
-      });
+    try {
+      final role = await AuthService.instance.tryRestoreSession();
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = role != null;
+          _userRole   = role;
+          _isLoading  = false;
+        });
+        // Si session restaurée → initialiser FCM
+        if (role != null) {
+          unawaited(PushNotificationService.instance.init());
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = false;
+          _userRole   = null;
+          _isLoading  = false;
+        });
+      }
     }
   }
 
@@ -120,12 +135,9 @@ class _AuthCheckState extends State<AuthCheck> {
     if (_isLoading) return const _SplashScreen();
     if (!_isLoggedIn) return const LoginPage();
     if (_userRole == User.rolePatient) {
-      // FCM désactivé — activer après google-services.json
-      // PushNotificationService.instance.init();
       return const PatientNavigation();
     }
     if (_userRole == User.roleDoctor) {
-      // PushNotificationService.instance.init();
       return const MedecinNavigation();
     }
     // Rôle inconnu → retour login
