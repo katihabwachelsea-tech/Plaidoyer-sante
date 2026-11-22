@@ -5,7 +5,7 @@ class Conseil {
   final String titre;
   final String maladieCible; // Ex: 'Cancer du sein', 'Malaria'
   final String description;
-  final String? source; // Ex: 'WHO', 'Local Clinic'
+  final String? source; // Ex: 'Santé nationale', 'Cabinet local'
 
   Conseil({
     this.id,

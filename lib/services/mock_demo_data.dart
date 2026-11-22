@@ -1,4 +1,3 @@
-import '../models/country_stats.dart';
 import '../models/patient.dart';
 import '../utils/doctor_photo.dart';
 
@@ -161,54 +160,6 @@ class MockDemoDataService {
     'Dermatologie',
   ];
 
-  List<CountryStats> get countryStats => [
-    CountryStats(
-      countryCode: 'BDI',
-      countryName: 'Burundi',
-      value: 145.0,
-      year: 2025,
-      indicator: 'NCDMORT3070',
-      indicatorDimension: 'BothSexes',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    CountryStats(
-      countryCode: 'RWA',
-      countryName: 'Rwanda',
-      value: 178.0,
-      year: 2025,
-      indicator: 'NCDMORT3070',
-      indicatorDimension: 'BothSexes',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    CountryStats(
-      countryCode: 'KEN',
-      countryName: 'Kenya',
-      value: 234.0,
-      year: 2025,
-      indicator: 'NCDMORT3070',
-      indicatorDimension: 'BothSexes',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    CountryStats(
-      countryCode: 'TZA',
-      countryName: 'Tanzania',
-      value: 189.0,
-      year: 2025,
-      indicator: 'NCDMORT3070',
-      indicatorDimension: 'BothSexes',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 4)),
-    ),
-    CountryStats(
-      countryCode: 'UGA',
-      countryName: 'Uganda',
-      value: 167.0,
-      year: 2025,
-      indicator: 'NCDMORT3070',
-      indicatorDimension: 'BothSexes',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-  ];
-
   Future<List<Patient>> getPatients({int limit = 5}) async {
     await Future.delayed(const Duration(milliseconds: 400));
     return patients.take(limit).toList();
@@ -224,8 +175,4 @@ class MockDemoDataService {
     return specialties;
   }
 
-  Future<List<CountryStats>> getCountryStatsList() async {
-    await Future.delayed(const Duration(milliseconds: 350));
-    return countryStats;
-  }
 }

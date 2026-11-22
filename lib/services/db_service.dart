@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/patient.dart';
-import '../models/country_stats.dart';
 import '../models/Sponsor.dart';
 import '../models/Conseil.dart'; // Renommé 'advice.dart' pour le modèle Conseil dans les étapes précédentes
 // import '../services/sponsor_service.dart'; // Importer le service des sponsors
@@ -86,22 +85,6 @@ class DatabaseService {
   CREATE INDEX idx_patient_search ON $tableName (nom, prenom, maladie);
 ''');
     print('✅ Index de recherche Patients créé');
-
-    // Table pour les statistiques WHO
-    await db.execute('''
- CREATE TABLE country_stats (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- countryCode TEXT NOT NULL,
- countryName TEXT NOT NULL,
- value REAL NOT NULL,
- year INTEGER NOT NULL,
- indicator TEXT NOT NULL,
- indicatorDimension TEXT NOT NULL,
- lastUpdated TEXT NOT NULL,
- UNIQUE(countryCode, year, indicator, indicatorDimension)
- )
- ''');
-    print(' Table country_stats créée');
 
     // Insérer les données de test
     await _insertTestData(db);
@@ -265,7 +248,7 @@ CREATE TABLE IF NOT EXISTS cached_appointments (
         maladieCible: 'Cancer du sein',
         description:
             'L\'autopalpation mensuelle et la mammographie régulière (selon l\'âge) sont cruciales pour une détection précoce, augmentant considérablement les chances de succès du traitement.',
-        source: 'OMS/Santé Nationale',
+        source: 'Santé nationale',
       ).toMap(),
       Conseil(
         titre: 'Arrêt du Tabac Immédiat',
@@ -717,57 +700,6 @@ CREATE TABLE IF NOT EXISTS cached_appointments (
       ORDER BY count DESC
     ''');
     return result;
-  }
-
-  // ========== STATISTIQUES WHO ==========
-
-  Future<void> saveCountryStats(List<CountryStats> stats) async {
-    // ... (Logique inchangée)
-    final db = await database;
-    for (final stat in stats) {
-      await db.insert(
-        'country_stats',
-        stat.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-  }
-
-  Future<List<CountryStats>> getCountryStats({String? countryCode}) async {
-    // ... (Logique inchangée)
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'country_stats',
-      where: countryCode != null ? 'countryCode = ?' : null,
-      whereArgs: countryCode != null ? [countryCode] : null,
-      orderBy: 'year DESC',
-    );
-    return List.generate(maps.length, (i) => CountryStats.fromMap(maps[i]));
-  }
-
-  Future<bool> areStatsOutdated() async {
-    // ... (Logique inchangée)
-    final db = await database;
-    final result = await db.query(
-      'country_stats',
-      columns: ['lastUpdated'],
-      orderBy: 'lastUpdated DESC',
-      limit: 1,
-    );
-    if (result.isEmpty) return true;
-    final lastUpdate = DateTime.parse(result.first['lastUpdated'] as String);
-    return DateTime.now().difference(lastUpdate).inDays > 7;
-  }
-
-  Future<void> clearOldStats() async {
-    // ... (Logique inchangée)
-    final db = await database;
-    final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7));
-    await db.delete(
-      'country_stats',
-      where: 'lastUpdated < ?',
-      whereArgs: [oneWeekAgo.toIso8601String()],
-    );
   }
 
   // 2. Pour la PatientDetailPage (Conseils)
