@@ -20,18 +20,6 @@ class CountryStats {
     required this.lastUpdated,
   });
 
-  // Map de conversion pour la dimension OMS (Dim1)
-  static final Map<String, String> _indicatorDimensionNames = {
-    // ⚠️ Ces codes sont des exemples. Vous devez les vérifier
-    // dans la documentation de l'API de l'OMS pour l'indicateur utilisé.
-    'ALL': 'Tous les Cancers',
-    'BREAST': 'Cancer du Sein',
-    'COLORECTAL': 'Cancer Colorectal',
-    'LUNG': 'Cancer du Poumon',
-    'PROSTATE': 'Cancer de la Prostate',
-    // ... Ajoutez d'autres si nécessaire ...
-  };
-
   // Convertir un objet Map (lu depuis la DB) en objet CountryStats
   factory CountryStats.fromMap(Map<String, dynamic> map) {
     return CountryStats(

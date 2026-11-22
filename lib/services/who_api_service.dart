@@ -167,7 +167,7 @@ class WHOApiService {
         int maxYear = allStats.fold(
           0,
           (currentMax, stat) =>
-              (stat.year ?? 0) > currentMax ? (stat.year ?? 0) : currentMax,
+              stat.year > currentMax ? stat.year : currentMax,
         );
 
         // Si l'année la plus récente est trouvée (et que ce n'est pas 0)
